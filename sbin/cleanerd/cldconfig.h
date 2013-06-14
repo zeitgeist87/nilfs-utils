@@ -38,7 +38,8 @@ struct nilfs_suinfo;
  * @p_threshold:
  */
 struct nilfs_selection_policy {
-	unsigned long long (*p_importance)(const struct nilfs_suinfo *);
+	unsigned long long (*p_importance)(struct nilfs *nilfs,
+		       struct nilfs_sustat *sustat, const struct nilfs_suinfo *);
 	unsigned long long p_threshold;
 };
 

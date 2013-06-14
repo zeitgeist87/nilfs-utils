@@ -372,7 +372,8 @@ nilfs_cldconfig_handle_clean_check_interval(struct nilfs_cldconfig *config,
 }
 
 static unsigned long long
-nilfs_cldconfig_selection_policy_timestamp(const struct nilfs_suinfo *si)
+nilfs_cldconfig_selection_policy_timestamp(struct nilfs *nilfs,
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
 {
 	return si->sui_lastmod;
 }
@@ -388,9 +389,51 @@ nilfs_cldconfig_handle_selection_policy_timestamp(struct nilfs_cldconfig *config
 	return 0;
 }
 
+static unsigned long long
+nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
+{
+	return si->sui_nblocks;
+}
+
+static int
+nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
+						  char **tokens, size_t ntoks)
+{
+	config->cf_selection_policy.p_importance =
+			nilfs_cldconfig_selection_policy_greedy;
+	config->cf_selection_policy.p_threshold =
+		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	return 0;
+}
+
+static unsigned long long
+nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
+{
+	__u32 max_blocks = nilfs_get_blocks_per_segment(nilfs);
+	__u32 free_blocks = max_blocks - si->sui_nblocks;
+	/* read the whole segment + write the live blocks */
+	__u32 cleaning_cost = max_blocks + si->sui_nblocks;
+	return (si->sui_lastmod * free_blocks) / cleaning_cost;
+}
+
+static int
+nilfs_cldconfig_handle_selection_policy_cost_benefit(struct nilfs_cldconfig *config,
+						  char **tokens, size_t ntoks)
+{
+	config->cf_selection_policy.p_importance =
+			nilfs_cldconfig_selection_policy_cost_benefit;
+	config->cf_selection_policy.p_threshold =
+		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	return 0;
+}
+
 static const struct nilfs_cldconfig_polhandle
 nilfs_cldconfig_polhandle_table[] = {
 	{"timestamp",	nilfs_cldconfig_handle_selection_policy_timestamp},
+	{"greedy",	nilfs_cldconfig_handle_selection_policy_greedy},
+	{"cost-benefit",	nilfs_cldconfig_handle_selection_policy_cost_benefit},
 };
 
 #define NILFS_CLDCONFIG_NPOLHANDLES			\

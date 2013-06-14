@@ -453,15 +453,20 @@ nilfs_cleanerd_protection_period(struct nilfs_cleanerd *cleanerd)
 		&cleanerd->config.cf_protection_period;
 }
 
-static void
-nilfs_cleanerd_reduce_ncleansegs_for_retry(struct nilfs_cleanerd *cleanerd)
+static long
+nilfs_cleanerd_ncleansegs(struct nilfs_cleanerd *cleanerd)
 {
+	return cleanerd->running == 2 ? cleanerd->mm_ncleansegs : cleanerd->ncleansegs;
+}
+
+static void
+nilfs_cleanerd_reduce_ncleansegs_for_retry(struct nilfs_cleanerd *cleanerd) {
 	if (cleanerd->running == 2) {
-		if (cleanerd->ncleansegs > 1)
-			cleanerd->ncleansegs >>= 1;
-	} else  {
 		if (cleanerd->mm_ncleansegs > 1)
 			cleanerd->mm_ncleansegs >>= 1;
+	} else {
+		if (cleanerd->ncleansegs > 1)
+			cleanerd->ncleansegs >>= 1;
 	}
 }
 
@@ -571,7 +576,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	unsigned long long imp, thr;
 	int i;
 
-	nsegs = cleanerd->ncleansegs;
+	nsegs = nilfs_cleanerd_ncleansegs(cleanerd);
 	nilfs = cleanerd->nilfs;
 	config = &cleanerd->config;
 
@@ -603,7 +608,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 		}
 		for (i = 0; i < n; i++) {
 			if (nilfs_suinfo_reclaimable(&si[i]) &&
-			    ((imp = (*config->cf_selection_policy.p_importance)(&si[i])) < thr)) {
+			    ((imp = (*config->cf_selection_policy.p_importance)(nilfs, sustat, &si[i])) < thr)) {
 				if (si[i].sui_lastmod < oldest)
 					oldest = si[i].sui_lastmod;
 				if (si[i].sui_lastmod < prottime) {
