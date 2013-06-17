@@ -84,7 +84,7 @@ AC_SUBST(LIB_POSIX_SEM)
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([ctype.h fcntl.h grp.h libintl.h limits.h linux/magic.h \
-		  linux/types.h locale.h mntent.h mqueue.h paths.h pwd.h \
+		  linux/types.h linux/fs.h linux/fiemap.h locale.h mntent.h mqueue.h paths.h pwd.h \
 		  semaphore.h stdlib.h string.h strings.h sys/ioctl.h \
 		  sys/mount.h sys/time.h syslog.h time.h unistd.h])
 
@@ -173,5 +173,6 @@ AC_CONFIG_FILES([Makefile
 		 sbin/mount/Makefile
 		 sbin/nilfs-tune/Makefile
 		 sbin/nilfs-clean/Makefile
-		 sbin/nilfs-resize/Makefile])
+		 sbin/nilfs-resize/Makefile
+		 sbin/nilfs-defrag/Makefile])
 AC_OUTPUT
