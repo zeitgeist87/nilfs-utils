@@ -127,6 +127,10 @@ static int nilfs_defrag_do_run(struct nilfs *nilfs, int fd, off_t size) {
 			goto out;
 		}
 
+		if (fiemap->fm_mapped_extents < 1){
+			goto out;
+		}
+
 		if (fiemap->fm_mapped_extents > MAX_EXTENTS_PER_SEGMENT) {
 			for (j = 0; j < fiemap->fm_mapped_extents; ++j) {
 				if (!(fiemap->fm_flags & FIEMAP_EXTENT_DELALLOC)) {
