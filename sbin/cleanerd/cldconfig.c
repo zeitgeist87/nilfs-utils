@@ -415,7 +415,11 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	__u32 free_blocks = max_blocks - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
 	__u32 cleaning_cost = max_blocks + si->sui_nblocks;
-	return (si->sui_lastmod * free_blocks) / cleaning_cost;
+	/* return (si->sui_lastmod * free_blocks) / cleaning_cost; */
+	if (free_blocks)
+		return (si->sui_lastmod * cleaning_cost) / free_blocks;
+	else
+		return (si->sui_lastmod * cleaning_cost) + 1;
 }
 
 static int
