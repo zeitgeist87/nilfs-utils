@@ -384,8 +384,8 @@ nilfs_cldconfig_handle_selection_policy_timestamp(struct nilfs_cldconfig *config
 {
 	config->cf_selection_policy.p_importance =
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
-	config->cf_selection_policy.p_threshold =
-		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
 }
 
@@ -402,8 +402,8 @@ nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_greedy;
-	config->cf_selection_policy.p_threshold =
-		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
 }
 
@@ -415,11 +415,7 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	__u32 free_blocks = max_blocks - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
 	__u32 cleaning_cost = max_blocks + si->sui_nblocks;
-	/* return (si->sui_lastmod * free_blocks) / cleaning_cost; */
-	if (free_blocks)
-		return (si->sui_lastmod * cleaning_cost) / free_blocks;
-	else
-		return (si->sui_lastmod * cleaning_cost) + 1;
+	return (si->sui_lastmod * free_blocks) / cleaning_cost;
 }
 
 static int
@@ -428,8 +424,8 @@ nilfs_cldconfig_handle_selection_policy_cost_benefit(struct nilfs_cldconfig *con
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_cost_benefit;
-	config->cf_selection_policy.p_threshold =
-		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+			NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
 	return 0;
 }
 
@@ -660,8 +656,8 @@ static void nilfs_cldconfig_set_default(struct nilfs_cldconfig *config,
 
 	config->cf_selection_policy.p_importance =
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
-	config->cf_selection_policy.p_threshold =
-		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	config->cf_protection_period.tv_sec = NILFS_CLDCONFIG_PROTECTION_PERIOD;
 	config->cf_protection_period.tv_usec = 0;
 

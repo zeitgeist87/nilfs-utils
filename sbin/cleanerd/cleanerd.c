@@ -420,13 +420,25 @@ static void nilfs_cleanerd_destroy(struct nilfs_cleanerd *cleanerd)
 	free(cleanerd);
 }
 
-static int nilfs_comp_segimp(const void *elem1, const void *elem2)
+static int nilfs_comp_segimp_asc(const void *elem1, const void *elem2)
 {
 	const struct nilfs_segimp *segimp1 = elem1, *segimp2 = elem2;
 
 	if (segimp1->si_importance < segimp2->si_importance)
 		return -1;
 	else if (segimp1->si_importance > segimp2->si_importance)
+		return 1;
+
+	return (segimp1->si_segnum < segimp2->si_segnum) ? -1 : 1;
+}
+
+static int nilfs_comp_segimp_desc(const void *elem1, const void *elem2)
+{
+	const struct nilfs_segimp *segimp1 = elem1, *segimp2 = elem2;
+
+	if (segimp1->si_importance > segimp2->si_importance)
+		return -1;
+	else if (segimp1->si_importance < segimp2->si_importance)
 		return 1;
 
 	return (segimp1->si_segnum < segimp2->si_segnum) ? -1 : 1;
@@ -629,7 +641,10 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 			break;
 		}
 	}
-	nilfs_vector_sort(smv, nilfs_comp_segimp);
+	if (config->cf_selection_policy.p_comparison == NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER)
+		nilfs_vector_sort(smv, nilfs_comp_segimp_asc);
+	else
+		nilfs_vector_sort(smv, nilfs_comp_segimp_desc);
 
 	nssegs = (nilfs_vector_get_size(smv) < nsegs) ?
 		nilfs_vector_get_size(smv) : nsegs;

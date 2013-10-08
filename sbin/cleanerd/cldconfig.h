@@ -40,7 +40,7 @@ struct nilfs_suinfo;
 struct nilfs_selection_policy {
 	unsigned long long (*p_importance)(struct nilfs *nilfs,
 		       struct nilfs_sustat *sustat, const struct nilfs_suinfo *);
-	unsigned long long p_threshold;
+	int p_comparison;
 };
 
 /**
@@ -107,7 +107,8 @@ struct nilfs_cldconfig {
 
 #define NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE	\
 			nilfs_cldconfig_selection_policy_timestamp
-#define NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD	0
+#define NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER	0
+#define NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER	1
 #define NILFS_CLDCONFIG_PROTECTION_PERIOD		3600
 #define NILFS_CLDCONFIG_MIN_CLEAN_SEGMENTS		10
 #define NILFS_CLDCONFIG_MIN_CLEAN_SEGMENTS_UNIT		NILFS_SIZE_UNIT_PERCENT
