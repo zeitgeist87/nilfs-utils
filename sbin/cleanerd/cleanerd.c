@@ -465,20 +465,15 @@ nilfs_cleanerd_protection_period(struct nilfs_cleanerd *cleanerd)
 		&cleanerd->config.cf_protection_period;
 }
 
-static long
-nilfs_cleanerd_ncleansegs(struct nilfs_cleanerd *cleanerd)
-{
-	return cleanerd->running == 2 ? cleanerd->mm_ncleansegs : cleanerd->ncleansegs;
-}
-
 static void
-nilfs_cleanerd_reduce_ncleansegs_for_retry(struct nilfs_cleanerd *cleanerd) {
+nilfs_cleanerd_reduce_ncleansegs_for_retry(struct nilfs_cleanerd *cleanerd)
+{
 	if (cleanerd->running == 2) {
-		if (cleanerd->mm_ncleansegs > 1)
-			cleanerd->mm_ncleansegs >>= 1;
-	} else {
 		if (cleanerd->ncleansegs > 1)
 			cleanerd->ncleansegs >>= 1;
+	} else  {
+		if (cleanerd->mm_ncleansegs > 1)
+			cleanerd->mm_ncleansegs >>= 1;
 	}
 }
 
@@ -588,7 +583,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	unsigned long long imp;
 	int i;
 
-	nsegs = nilfs_cleanerd_ncleansegs(cleanerd);
+	nsegs = cleanerd->ncleansegs;
 	nilfs = cleanerd->nilfs;
 	config = &cleanerd->config;
 

@@ -415,7 +415,7 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	__u32 free_blocks = max_blocks - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
 	__u32 cleaning_cost = max_blocks + si->sui_nblocks;
-	/* multiply by 1000 to convert age to milliseconds (higher precision for div) */
+	/* multiply by 1000 to convert age to milliseconds (higher precision for division) */
 	__u64 age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
 
 	if (sustat->ss_nongc_ctime < si->sui_lastmod)
