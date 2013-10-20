@@ -869,5 +869,7 @@ struct nilfs_bdesc {
 	_IOW(NILFS_IOCTL_IDENT, 0x8C, __u64[2])
 #define NILFS_IOCTL_MARK_EXTENT_DIRTY  \
 	_IOW(NILFS_IOCTL_IDENT, 0x8D, __u64[2])
+#define NILFS_IOCTL_SET_SUINFO_NBLOCKS  \
+	_IOR(NILFS_IOCTL_IDENT, 0x8F, struct nilfs_argv[2])
 
 #endif	/* _LINUX_NILFS_FS_H */

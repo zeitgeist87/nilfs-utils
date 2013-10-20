@@ -384,9 +384,27 @@ nilfs_cldconfig_handle_selection_policy_timestamp(struct nilfs_cldconfig *config
 {
 	config->cf_selection_policy.p_importance =
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
+	config->cf_selection_policy.p_check_results =
+			NILFS_CLDCONFIG_SELECTION_POLICY_CHECK_RESULTS;
 	config->cf_selection_policy.p_comparison =
 			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
+}
+
+
+static int
+nilfs_cldconfig_selection_policy_check_live_blocks(size_t pred_live_blocks, size_t live_blocks, size_t free_blocks){
+	size_t sum;
+	int pred_percentage, real_percentage;
+
+	sum = live_blocks + free_blocks;
+	pred_percentage = (int)(pred_live_blocks * 100 / sum);
+	real_percentage = (int)(live_blocks * 100 / sum);
+
+	if (real_percentage > 95 && real_percentage - pred_percentage > 80)
+		return 0;
+
+	return 1;
 }
 
 static unsigned long long
@@ -402,6 +420,8 @@ nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_greedy;
+	config->cf_selection_policy.p_check_results =
+			nilfs_cldconfig_selection_policy_check_live_blocks;
 	config->cf_selection_policy.p_comparison =
 			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
@@ -430,6 +450,8 @@ nilfs_cldconfig_handle_selection_policy_cost_benefit(struct nilfs_cldconfig *con
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_cost_benefit;
+	config->cf_selection_policy.p_check_results =
+			nilfs_cldconfig_selection_policy_check_live_blocks;
 	config->cf_selection_policy.p_comparison =
 			NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
 	return 0;

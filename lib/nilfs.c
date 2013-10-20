@@ -652,6 +652,25 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_CLEAN_SEGMENTS, argv);
 }
 
+int nilfs_set_suinfo_nblocks(struct nilfs *nilfs,
+			 __u64 *segnumv, __u32 *nblocksv, size_t nsegs)
+{
+	struct nilfs_argv argv[2];
+
+	if (nilfs->n_iocfd < 0) {
+		errno = EBADF;
+		return -1;
+	}
+
+	argv[0].v_base = (unsigned long)segnumv;
+	argv[0].v_nmembs = nsegs;
+	argv[0].v_size = sizeof(__u64);
+	argv[1].v_base = (unsigned long)nblocksv;
+	argv[1].v_nmembs = nsegs;
+	argv[1].v_size = sizeof(__u64);
+	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_SET_SUINFO_NBLOCKS, argv);
+}
+
 /**
  * nilfs_sync -
  * @nilfs:

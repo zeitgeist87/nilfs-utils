@@ -27,9 +27,16 @@
 #ifndef CLDCONFIG_H
 #define CLDCONFIG_H
 
+#if HAVE_STDLIB_H
+#include <stdlib.h>
+#endif	/* HAVE_STDLIB_H */
+
 #include <sys/time.h>
 #include <syslog.h>
 
+
+struct nilfs;
+struct nilfs_sustat;
 struct nilfs_suinfo;
 
 /**
@@ -39,7 +46,8 @@ struct nilfs_suinfo;
  */
 struct nilfs_selection_policy {
 	unsigned long long (*p_importance)(struct nilfs *nilfs,
-		       struct nilfs_sustat *sustat, const struct nilfs_suinfo *);
+			struct nilfs_sustat *sustat, const struct nilfs_suinfo *);
+	int (*p_check_results)(size_t, size_t, size_t);
 	int p_comparison;
 };
 
@@ -107,6 +115,7 @@ struct nilfs_cldconfig {
 
 #define NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE	\
 			nilfs_cldconfig_selection_policy_timestamp
+#define NILFS_CLDCONFIG_SELECTION_POLICY_CHECK_RESULTS	NULL
 #define NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER	0
 #define NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER	1
 #define NILFS_CLDCONFIG_PROTECTION_PERIOD		3600
@@ -124,8 +133,6 @@ struct nilfs_cldconfig {
 #define NILFS_CLDCONFIG_LOG_PRIORITY			LOG_INFO
 
 #define NILFS_CLDCONFIG_NSEGMENTS_PER_CLEAN_MAX	32
-
-struct nilfs;
 
 int nilfs_cldconfig_read(struct nilfs_cldconfig *config, const char *path,
 			 struct nilfs *nilfs);

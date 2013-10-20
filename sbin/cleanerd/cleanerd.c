@@ -193,6 +193,7 @@ struct nilfs_cleanerd {
  */
 struct nilfs_segimp {
 	__u64 si_segnum;
+	__u32 si_nblocks;
 	unsigned long long si_importance;
 };
 
@@ -568,7 +569,7 @@ static int nilfs_shrink_protected_region(struct nilfs *nilfs)
 static ssize_t
 nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 			       struct nilfs_sustat *sustat, __u64 *segnums,
-			       __u64 *prottimep, __u64 *oldestp)
+			       __u64 *prottimep, __u64 *oldestp, size_t *blocknumsp)
 {
 	struct nilfs *nilfs;
 	struct nilfs_cldconfig *config;
@@ -578,7 +579,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	struct timeval tv, tv2;
 	__u64 prottime, oldest;
 	__u64 segnum;
-	size_t count, nsegs;
+	size_t count, nsegs, blocknums;
 	ssize_t nssegs, n;
 	unsigned long long imp;
 	int i;
@@ -599,7 +600,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	timersub(&tv, nilfs_cleanerd_protection_period(cleanerd), &tv2);
 	prottime = tv2.tv_sec;
 	oldest = tv.tv_sec;
-
+	blocknums = 0;
 
 	for (segnum = 0; segnum < sustat->ss_nsegs; segnum += n) {
 		count = (sustat->ss_nsegs - segnum < NILFS_CLEANERD_NSUINFO) ?
@@ -624,6 +625,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 					}
 					sm->si_segnum = segnum + i;
 					sm->si_importance = imp;
+					sm->si_nblocks = si[i].sui_nblocks;
 				}
 			}
 		}
@@ -647,9 +649,11 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 		sm = nilfs_vector_get_element(smv, i);
 		assert(sm != NULL);
 		segnums[i] = sm->si_segnum;
+		blocknums += sm->si_nblocks;
 	}
 	*prottimep = prottime;
 	*oldestp = oldest < tv.tv_sec ? oldest : NILFS_CLEANERD_NULLTIME;
+	*blocknumsp = blocknums;
 
  out:
 	nilfs_vector_destroy(smv);
@@ -1298,7 +1302,8 @@ static void nilfs_cleanerd_progress(struct nilfs_cleanerd *cleanerd, int nsegs)
 
 static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 					     __u64 *segnums, size_t nsegs,
-					     __u64 protseq, __u64 prottime)
+					     __u64 protseq, __u64 prottime,
+					     size_t blocknums)
 {
 	nilfs_cno_t protcno;
 	int ret, i;
@@ -1311,7 +1316,9 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 	}
 
 	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums, nsegs,
-				    protseq, protcno);
+				    protseq, protcno,
+				    cleanerd->config.cf_selection_policy.p_check_results,
+				    blocknums);
 	if (ret > 0) {
 		for (i = 0; i < ret; i++)
 			syslog(LOG_DEBUG, "segment %llu cleaned",
@@ -1351,6 +1358,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 {
 	struct nilfs_sustat sustat;
 	__u64 prottime = 0, oldest = 0;
+	size_t blocknums = 0;
 	__u64 segnums[NILFS_CLDCONFIG_NSEGMENTS_PER_CLEAN_MAX];
 	sigset_t sigset;
 	int ns, ndone, ret;
@@ -1415,7 +1423,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 		       (unsigned long long)sustat.ss_ncleansegs);
 
 		ns = nilfs_cleanerd_select_segments(
-			cleanerd, &sustat, segnums, &prottime, &oldest);
+			cleanerd, &sustat, segnums, &prottime, &oldest, &blocknums);
 		if (ns < 0) {
 			syslog(LOG_ERR, "cannot select segments: %m");
 			return -1;
@@ -1426,7 +1434,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 		if (ns > 0) {
 			ndone = nilfs_cleanerd_clean_segments(
 				cleanerd, segnums, ns, sustat.ss_prot_seq,
-				prottime);
+				prottime, blocknums);
 			if (ndone < 0)
 				return -1;
 		} else {

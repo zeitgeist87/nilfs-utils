@@ -16,7 +16,9 @@
 
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno);
+			      __u64 protseq, nilfs_cno_t protcno,
+			      int (*check_results)(size_t, size_t, size_t),
+			  	  size_t blocknums);
 
 
 static inline int nilfs_suinfo_reclaimable(const struct nilfs_suinfo *si)

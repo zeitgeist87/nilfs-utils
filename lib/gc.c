@@ -607,11 +607,14 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
  */
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno)
+			      __u64 protseq, nilfs_cno_t protcno,
+			      int (*check_results)(size_t, size_t, size_t),
+			  	  size_t blocknums)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, ret = -1;
+	ssize_t n, i, ret = -1;
+	__u32 *nblocksv;
 
 	if (nsegs == 0)
 		return 0;
@@ -674,16 +677,30 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
-	ret = nilfs_clean_segments(nilfs,
-				   nilfs_vector_get_data(vdescv),
-				   nilfs_vector_get_size(vdescv),
-				   nilfs_vector_get_data(periodv),
-				   nilfs_vector_get_size(periodv),
-				   nilfs_vector_get_data(vblocknrv),
-				   nilfs_vector_get_size(vblocknrv),
-				   nilfs_vector_get_data(bdescv),
-				   nilfs_vector_get_size(bdescv),
-				   segnums, n);
+	if (check_results && !(*check_results)(blocknums, nilfs_vector_get_size(vdescv) +
+			nilfs_vector_get_size(bdescv),
+			nilfs_vector_get_size(vblocknrv))){
+		nblocksv = malloc(sizeof(__u32) * n);
+		blocknums = (nilfs_vector_get_size(vdescv) + nilfs_vector_get_size(bdescv)) / n;
+
+		for (i = 0; i < n; ++i){
+			nblocksv[i] = blocknums;
+		}
+
+		ret = nilfs_set_suinfo_nblocks(nilfs, segnums, nblocksv, n);
+	} else {
+		ret = nilfs_clean_segments(nilfs,
+					   nilfs_vector_get_data(vdescv),
+					   nilfs_vector_get_size(vdescv),
+					   nilfs_vector_get_data(periodv),
+					   nilfs_vector_get_size(periodv),
+					   nilfs_vector_get_data(vblocknrv),
+					   nilfs_vector_get_size(vblocknrv),
+					   nilfs_vector_get_data(bdescv),
+					   nilfs_vector_get_size(bdescv),
+					   segnums, n);
+	}
+
 	if (ret < 0) {
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
