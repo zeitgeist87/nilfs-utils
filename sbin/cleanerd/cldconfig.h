@@ -27,13 +27,8 @@
 #ifndef CLDCONFIG_H
 #define CLDCONFIG_H
 
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif	/* HAVE_STDLIB_H */
-
 #include <sys/time.h>
 #include <syslog.h>
-
 
 struct nilfs;
 struct nilfs_sustat;

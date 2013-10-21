@@ -688,6 +688,8 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		}
 
 		ret = nilfs_set_suinfo_nblocks(nilfs, segnums, nblocksv, n);
+		if (ret >= 0)
+			ret = -ESUINFOWRONG;
 	} else {
 		ret = nilfs_clean_segments(nilfs,
 					   nilfs_vector_get_data(vdescv),
@@ -699,13 +701,12 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 					   nilfs_vector_get_data(bdescv),
 					   nilfs_vector_get_size(bdescv),
 					   segnums, n);
-	}
-
-	if (ret < 0) {
-		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
-				strerror(errno));
-	} else {
-		ret = n;
+		if (ret < 0) {
+			nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
+					strerror(errno));
+		} else {
+			ret = n;
+		}
 	}
 
 out_lock:
