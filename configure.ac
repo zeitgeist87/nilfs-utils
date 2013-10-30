@@ -174,5 +174,6 @@ AC_CONFIG_FILES([Makefile
 		 sbin/nilfs-tune/Makefile
 		 sbin/nilfs-clean/Makefile
 		 sbin/nilfs-resize/Makefile
-		 sbin/nilfs-defrag/Makefile])
+		 sbin/nilfs-defrag/Makefile
+		 sbin/nilfs-dump-sui/Makefile])
 AC_OUTPUT

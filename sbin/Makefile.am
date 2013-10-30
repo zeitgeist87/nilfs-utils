@@ -1,3 +1,3 @@
 ## Makefile.am
 
-SUBDIRS = cleanerd mkfs mount nilfs-tune nilfs-clean nilfs-resize nilfs-defrag
+SUBDIRS = cleanerd mkfs mount nilfs-tune nilfs-clean nilfs-resize nilfs-defrag nilfs-dump-sui
