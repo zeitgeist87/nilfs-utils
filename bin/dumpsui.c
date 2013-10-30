@@ -12,52 +12,13 @@
 #include "config.h"
 #endif	/* HAVE_CONFIG_H */
 
-#include <stdio.h>
-
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif	/* HAVE_STDLIB_H */
-
-#if HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif	/* HAVE_SYS_TYPES_H */
-
-#if HAVE_LINUX_TYPES_H
-#include <linux/types.h>
-#endif	/* HAVE_LINUX_TYPES_H */
-
-#if HAVE_UNISTD_H
-#include <unistd.h>
-#endif	/* HAVE_UNISTD_H */
-
-#if HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif	/* HAVE_SYS_IOCTL_H */
-
-#if HAVE_LIMITS_H
-#include <limits.h>
-#endif	/* HAVE_LIMITS_H */
-
 #if HAVE_STRING_H
 #include <string.h>
 #endif	/* HAVE_SYS_STRING_H */
 
-#if HAVE_LINUX_FS_H
-#include <linux/fs.h>
-#endif	/* HAVE_LINUX_TYPES_H */
-
-#if HAVE_LINUX_FIEMAP_H
-#include <linux/fiemap.h>
-#endif	/* HAVE_LINUX_FIEMAP_H */
-
-#include <sys/stat.h>
-#include <assert.h>
-#include <errno.h>
-#include <ctype.h>
+#include <stdio.h>
 #include "nls.h"
 #include "nilfs.h"
-#include "pathnames.h"
-#include "realpath.h"
 
 #ifdef _GNU_SOURCE
 #include <getopt.h>
@@ -107,81 +68,6 @@ static int nilfs_dump_sui_do_run(struct nilfs *nilfs) {
     return ret;
 }
 
-static inline int iseol(int c)
-{
-	return (c == '\n' || c == '\0');
-}
-
-static size_t tokenize(char *line, char **tokens, size_t ntoks)
-{
-	char *p;
-	size_t n;
-
-	p = line;
-	for (n = 0; n < ntoks; n++) {
-		while (isspace(*p))
-			p++;
-		if (iseol(*p))
-			break;
-		tokens[n] = p++;
-		while (!isspace(*p) && !iseol(*p))
-			p++;
-		if (isspace(*p))
-			*p++ = '\0';
-		else
-			*p = '\0';
-	}
-	return n;
-}
-
-#ifndef LINE_MAX
-#define LINE_MAX	2048
-#endif	/* LINE_MAX */
-#define NMNTFLDS	6
-#define MNTFLD_FS	0
-#define MNTFLD_DIR	1
-#define MNTFLD_TYPE	2
-#define MNTFLD_OPTS	3
-#define MNTFLD_FREQ	4
-#define MNTFLD_PASSNO	5
-
-static struct nilfs *nilfs_dump_sui_find_mount(const char *mountpoint) {
-	FILE *fp;
-	char line[LINE_MAX], *mntent[NMNTFLDS], maxmatch[LINE_MAX],
-			maxmatch_type[LINE_MAX], canonical[PATH_MAX + 2];
-	size_t maxmatch_len = 0, len, n;
-	struct nilfs *ret;
-
-	if (!myrealpath(mountpoint, canonical, sizeof(canonical)))
-		return NULL ;
-
-	mountpoint = canonical;
-
-	fp = fopen(_PATH_PROC_MOUNTS, "r");
-	if (fp == NULL )
-		return NULL ;
-
-	ret = NULL;
-
-	while (fgets(line, sizeof(line), fp) != NULL ) {
-		n = tokenize(line, mntent, NMNTFLDS);
-		assert(n == NMNTFLDS);
-
-		len = strlen(mntent[MNTFLD_DIR]);
-		if (len > maxmatch_len && !strncmp(mntent[MNTFLD_DIR], mountpoint, len)) {
-			strcpy(maxmatch, mntent[MNTFLD_DIR]);
-			strcpy(maxmatch_type, mntent[MNTFLD_TYPE]);
-			maxmatch_len = len;
-		}
-	}
-
-	if (maxmatch_len && !strcmp(maxmatch_type, NILFS_FSTYPE)) {
-		ret = nilfs_open(NULL, maxmatch, NILFS_OPEN_RAW | NILFS_OPEN_RDONLY);
-	}
-
-	fclose(fp);
-	return ret;
-}
 
 static char *parse_options(int argc, char *argv[]){
 	char *progname;
@@ -224,21 +110,19 @@ static char *parse_options(int argc, char *argv[]){
 int main(int argc, char *argv[])
 {
 	struct nilfs *nilfs;
-	char *mountpoint;
+	char *dev = NULL;
 	int ret = -1;
 
-	if((mountpoint = parse_options(argc, argv)) == NULL)
+	if((dev = parse_options(argc, argv)) == NULL)
 		return EXIT_SUCCESS;
 
-
-	if ((nilfs = nilfs_dump_sui_find_mount(mountpoint)) == NULL){
-		fprintf(stderr, _("Error: Cannot find corresponding nilfs volume for %s\n"), mountpoint);
-		goto out;
+	if ((nilfs = nilfs_open(dev, NULL, NILFS_OPEN_RDONLY)) == NULL) {
+		fprintf(stderr, "%s: cannot open NILFS\n", dev);
+		return EXIT_FAILURE;
 	}
 
 	ret = nilfs_dump_sui_do_run(nilfs);
 
-  out:
 	nilfs_close(nilfs);
 	return (ret < 0) ? EXIT_FAILURE : EXIT_SUCCESS;;
 }
