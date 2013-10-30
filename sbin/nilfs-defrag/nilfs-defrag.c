@@ -67,13 +67,13 @@ const static struct option long_option[] = {
 	{"version", no_argument, NULL, 'V'},
 	{NULL, 0, NULL, 0}
 };
-#define NILFS_CLEAN_USAGE						\
+#define NILFS_DEFRAG_USAGE						\
 	"Usage: %s [options] [file]\n"				\
 	"  -h, --help\t\tdisplay this help and exit\n"			\
 	"  -v, --verbose\t\tverbose mode\n"				\
 	"  -V, --version\t\tdisplay version and exit\n"
 #else
-#define NILFS_CLEAN_USAGE						\
+#define NILFS_DEFRAG_USAGE						\
 	"Usage: %s [-v] [-V] [file]\n"
 #endif	/* _GNU_SOURCE */
 
@@ -272,7 +272,7 @@ static char *parse_options(int argc, char *argv[]){
 #endif
 		switch (c) {
 		case 'h':
-			fprintf(stderr, NILFS_CLEAN_USAGE, progname);
+			fprintf(stderr, NILFS_DEFRAG_USAGE, progname);
 			return NULL;
 		case 'v':
 			option_verbose = 1;
@@ -287,7 +287,7 @@ static char *parse_options(int argc, char *argv[]){
 	}
 
 	if (optind >= argc) {
-		fprintf(stderr, NILFS_CLEAN_USAGE, progname);
+		fprintf(stderr, NILFS_DEFRAG_USAGE, progname);
 		return NULL;
 	}
 
@@ -323,11 +323,13 @@ int main(int argc, char *argv[])
 
 	if ((ret = nilfs_defrag_check_clean_segs(nilfs, st.st_size)) < 0){
 		fprintf(stderr, _("Error: Not enough clean segments available. Please run cleaner first.\n"));
-		goto out;
+		goto nilfs_out;
 	}
 
 	ret = nilfs_defrag_do_run(nilfs, fd, st.st_size);
 
+  nilfs_out:
+  	nilfs_close(nilfs);
   out:
 	close(fd);
 	return (ret < 0) ? EXIT_FAILURE : EXIT_SUCCESS;;
