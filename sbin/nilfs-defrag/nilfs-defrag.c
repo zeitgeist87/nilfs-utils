@@ -243,7 +243,7 @@ static struct nilfs *nilfs_defrag_find_mount(const char *filename,
 	}
 
 	if (maxmatch_len && !strcmp(maxmatch_type, NILFS_FSTYPE)) {
-		tmp = nilfs_open(NULL, maxmatch, NILFS_OPEN_RAW | NILFS_OPEN_RDONLY);
+		tmp = nilfs_open(NULL, maxmatch, NILFS_OPEN_RDONLY);
 
 		if (tmp && !fstat(tmp->n_devfd, &dev_st)
 				&& dev_st.st_rdev == file_st->st_dev)
