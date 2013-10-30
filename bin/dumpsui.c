@@ -28,12 +28,12 @@ const static struct option long_option[] = {
 	{NULL, 0, NULL, 0}
 };
 #define NILFS_DUMP_SUI_USAGE						\
-	"Usage: %s [options] [mountpoint]\n"				\
+	"Usage: %s [options] [dev]\n"				\
 	"  -h, --help\t\tdisplay this help and exit\n"			\
 	"  -V, --version\t\tdisplay version and exit\n"
 #else
 #define NILFS_DUMP_SUI_USAGE						\
-	"Usage: %s [-V] [mountpoint]\n"
+	"Usage: %s [-V] [dev]\n"
 #endif	/* _GNU_SOURCE */
 
 #define NILFS_CLEANERD_NSUINFO	512
@@ -69,14 +69,13 @@ static int nilfs_dump_sui_do_run(struct nilfs *nilfs) {
 }
 
 
-static char *parse_options(int argc, char *argv[]){
-	char *progname;
+static int parse_options(int argc, char *argv[], char **dev, char **progname){
 	int c;
 
-	if ((progname = strrchr(argv[0], '/')) != NULL)
-		progname++;
+	if ((*progname = strrchr(argv[0], '/')) != NULL)
+		(*progname)++;
 	else
-		progname = argv[0];
+		*progname = argv[0];
 
 
 #ifdef _GNU_SOURCE
@@ -87,42 +86,41 @@ static char *parse_options(int argc, char *argv[]){
 #endif
 		switch (c) {
 		case 'h':
-			fprintf(stderr, NILFS_DUMP_SUI_USAGE, progname);
-			return NULL;
+			fprintf(stderr, NILFS_DUMP_SUI_USAGE, *progname);
+			return 1;
 		case 'V':
-			fprintf(stderr, "%s version %s\n", progname, PACKAGE_VERSION);
-			return NULL;
+			fprintf(stderr, "%s version %s\n", *progname, PACKAGE_VERSION);
+			return 1;
 		default:
 			fprintf(stderr, _("Error: invalid option -- %c\n"), optopt);
-			return NULL;
+			return -1;
 		}
 	}
 
-	if (optind >= argc) {
-		fprintf(stderr, NILFS_DUMP_SUI_USAGE, progname);
-		return NULL;
-	}
+	if (optind < argc)
+		*dev = argv[optind];
 
-	return argv[optind];
+	return 0;
 }
 
 
 int main(int argc, char *argv[])
 {
 	struct nilfs *nilfs;
-	char *dev = NULL;
+	char *dev = NULL, *progname;
 	int ret = -1;
 
-	if((dev = parse_options(argc, argv)) == NULL)
-		return EXIT_SUCCESS;
+	if((ret = parse_options(argc, argv, &dev, &progname)) != 0)
+		goto out;
 
 	if ((nilfs = nilfs_open(dev, NULL, NILFS_OPEN_RDONLY)) == NULL) {
-		fprintf(stderr, "%s: cannot open NILFS\n", dev);
+		fprintf(stderr, "%s: %s: cannot open NILFS\n", progname, dev);
 		return EXIT_FAILURE;
 	}
 
 	ret = nilfs_dump_sui_do_run(nilfs);
 
 	nilfs_close(nilfs);
+  out:
 	return (ret < 0) ? EXIT_FAILURE : EXIT_SUCCESS;;
 }
