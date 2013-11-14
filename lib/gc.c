@@ -29,6 +29,10 @@
 #include <syslog.h>
 #endif	/* HAVE_SYSLOG_H */
 
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif	/* HAVE_SYS_TIME */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -614,7 +618,9 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, i, ret = -1;
-	__u32 *nblocksv;
+	__u32 *nblocksv, freeblocks;
+	__u64 *lastmodv;
+	struct timeval tv;
 
 	if (nsegs == 0)
 		return 0;
@@ -677,9 +683,11 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
+	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n) - (nilfs_vector_get_size(vdescv) +
+			nilfs_vector_get_size(bdescv));
+
 	if (check_results && !(*check_results)(blocknums, nilfs_vector_get_size(vdescv) +
-			nilfs_vector_get_size(bdescv),
-			nilfs_vector_get_size(vblocknrv))){
+			nilfs_vector_get_size(bdescv), freeblocks)){
 		nblocksv = malloc(sizeof(__u32) * n);
 		blocknums = (nilfs_vector_get_size(vdescv) + nilfs_vector_get_size(bdescv)) / n;
 
@@ -687,9 +695,28 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			nblocksv[i] = blocknums;
 		}
 
-		ret = nilfs_set_suinfo_nblocks(nilfs, segnums, nblocksv, n);
+		ret = nilfs_set_suinfo(nilfs, segnums, nblocksv, NULL, n);
 		if (ret >= 0)
-			ret = -ESUINFOWRONG;
+			ret = -ESUINFOCHANGE;
+
+		free(nblocksv);
+	} else if (check_results && freeblocks < 50) {
+		lastmodv = malloc(sizeof(__u32) * n);
+
+		if (gettimeofday(&tv, NULL) < 0) {
+			ret = -1;
+			goto out_lock;
+		}
+
+		for (i = 0; i < n; ++i){
+			lastmodv[i] = tv.tv_sec;
+		}
+
+		ret = nilfs_set_suinfo(nilfs, segnums, NULL, lastmodv, n);
+		if (ret >= 0)
+			ret = -ESUINFOCHANGE;
+
+		free(lastmodv);
 	} else {
 		ret = nilfs_clean_segments(nilfs,
 					   nilfs_vector_get_data(vdescv),

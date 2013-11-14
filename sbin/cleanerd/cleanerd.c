@@ -1352,7 +1352,7 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 			cleanerd->retry_cleaning = 0;
 		}
 
-	} else if (ret == -ESUINFOWRONG) {
+	} else if (ret == -ESUINFOCHANGE) {
 		cleanerd->fallback = 0;
 		cleanerd->retry_cleaning = 1;
 		cleanerd->no_timeout = 1;
