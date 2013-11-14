@@ -603,6 +603,9 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	oldest = tv.tv_sec;
 	blocknums = 0;
 
+	/* sui_lastdec may not be set by nilfs_get_suinfo*/
+	memset(si, 0, sizeof(si));
+
 	for (segnum = 0; segnum < sustat->ss_nsegs; segnum += n) {
 		count = (sustat->ss_nsegs - segnum < NILFS_CLEANERD_NSUINFO) ?
 			sustat->ss_nsegs - segnum : NILFS_CLEANERD_NSUINFO;
@@ -618,6 +621,12 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 
 				if (si[i].sui_lastmod < oldest)
 					oldest = si[i].sui_lastmod;
+				if (si[i].sui_lastdec >= prottime) {
+					if (config->cf_selection_policy.p_comparison == NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER)
+						imp <<= 1;
+					else
+						imp >>= 1;
+				}
 				if (si[i].sui_lastmod < prottime) {
 					sm = nilfs_vector_get_new_element(smv);
 					if (sm == NULL) {

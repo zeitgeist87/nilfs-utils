@@ -612,11 +612,13 @@ struct nilfs_cpfile_header {
  * @su_lastmod: last modified timestamp
  * @su_nblocks: number of blocks in segment
  * @su_flags: flags
+ * @su_lastdec: last decrement of su_nblocks timestamp
  */
 struct nilfs_segment_usage {
 	__le64 su_lastmod;
 	__le32 su_nblocks;
 	__le32 su_flags;
+	__le64 su_lastdec;
 };
 
 /* segment usage flag */
@@ -659,6 +661,7 @@ nilfs_segment_usage_set_clean(struct nilfs_segment_usage *su)
 	su->su_lastmod = cpu_to_le64(0);
 	su->su_nblocks = cpu_to_le32(0);
 	su->su_flags = cpu_to_le32(0);
+	su->su_lastdec = cpu_to_le64(0);
 }
 
 static inline int
@@ -695,6 +698,7 @@ struct nilfs_suinfo {
 	__u64 sui_lastmod;
 	__u32 sui_nblocks;
 	__u32 sui_flags;
+	__u64 sui_lastdec;
 };
 
 #define NILFS_SUINFO_FNS(flag, name)					\
