@@ -701,7 +701,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 
 		free(nblocksv);
 	} else if (check_results && freeblocks < 50) {
-		lastmodv = malloc(sizeof(__u32) * n);
+		lastmodv = malloc(sizeof(__u64) * n);
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
