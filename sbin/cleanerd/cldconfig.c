@@ -373,7 +373,7 @@ nilfs_cldconfig_handle_clean_check_interval(struct nilfs_cldconfig *config,
 
 static unsigned long long
 nilfs_cldconfig_selection_policy_timestamp(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
 {
 	return si->sui_lastmod;
 }
@@ -409,9 +409,24 @@ nilfs_cldconfig_selection_policy_check_live_blocks(size_t pred_live_blocks, size
 
 static unsigned long long
 nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
 {
-	return si->sui_nblocks;
+	__u32 value, max_blocks = nilfs_get_blocks_per_segment(nilfs);
+
+	if (max_blocks < si->sui_nblocks)
+		return 0;
+
+	value = max_blocks - si->sui_nblocks;
+
+	/*
+	 * the value of sui_nblocks is probably not accurate
+	 * because blocks inside the protection period are not
+	 * considered to be dead (divide value by 8)
+	 */
+	if (si->sui_lastdec >= prottime)
+		value <<= 3;
+
+	return value;
 }
 
 static int
@@ -423,25 +438,38 @@ nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
 	config->cf_selection_policy.p_check_results =
 			nilfs_cldconfig_selection_policy_check_live_blocks;
 	config->cf_selection_policy.p_comparison =
-			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
+			NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
 	return 0;
 }
 
 static unsigned long long
 nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
 {
-	__u32 max_blocks = nilfs_get_blocks_per_segment(nilfs);
-	__u32 free_blocks = max_blocks - si->sui_nblocks;
+	__u32 max_blocks, free_blocks, cleaning_cost;
+	__u64 value, age;
+
+	max_blocks = nilfs_get_blocks_per_segment(nilfs);
+	free_blocks = max_blocks - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
-	__u32 cleaning_cost = max_blocks + si->sui_nblocks;
+	cleaning_cost = max_blocks + si->sui_nblocks;
 	/* multiply by 1000 to convert age to milliseconds (higher precision for division) */
-	__u64 age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
+	age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
 
 	if (sustat->ss_nongc_ctime < si->sui_lastmod)
 		return 0;
 
-	return (age * free_blocks) / cleaning_cost;
+	value = (age * free_blocks) / cleaning_cost;
+
+	/*
+	 * the value of sui_nblocks is probably not accurate
+	 * because blocks inside the protection period are not
+	 * considered to be dead (divide value by 8)
+	 */
+	if (si->sui_lastdec >= prottime)
+		value <<= 3;
+
+	return value;
 }
 
 static int

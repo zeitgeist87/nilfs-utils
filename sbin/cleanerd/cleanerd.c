@@ -617,16 +617,10 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 			if (nilfs_suinfo_reclaimable(&si[i]) &&
 				si[i].sui_lastmod < sustat->ss_nongc_ctime) {
 
-				imp = (*config->cf_selection_policy.p_importance)(nilfs, sustat, &si[i]);
+				imp = (*config->cf_selection_policy.p_importance)(nilfs, sustat, &si[i], prottime);
 
 				if (si[i].sui_lastmod < oldest)
 					oldest = si[i].sui_lastmod;
-				if (si[i].sui_lastdec >= prottime) {
-					if (config->cf_selection_policy.p_comparison == NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER)
-						imp <<= 1;
-					else
-						imp >>= 1;
-				}
 				if (si[i].sui_lastmod < prottime) {
 					sm = nilfs_vector_get_new_element(smv);
 					if (sm == NULL) {

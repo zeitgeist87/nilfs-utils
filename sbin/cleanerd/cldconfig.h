@@ -41,7 +41,7 @@ struct nilfs_suinfo;
  */
 struct nilfs_selection_policy {
 	unsigned long long (*p_importance)(struct nilfs *nilfs,
-			struct nilfs_sustat *sustat, const struct nilfs_suinfo *);
+			struct nilfs_sustat *sustat, const struct nilfs_suinfo *, __u64 prottime);
 	int (*p_check_results)(size_t, size_t, size_t);
 	int p_comparison;
 };
