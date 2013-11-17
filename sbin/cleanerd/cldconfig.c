@@ -424,7 +424,7 @@ nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
 	 * considered to be dead (divide value by 8)
 	 */
 	if (si->sui_lastdec >= prottime)
-		value <<= 3;
+		value >>= 3;
 
 	return value;
 }
@@ -467,7 +467,7 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	 * considered to be dead (divide value by 8)
 	 */
 	if (si->sui_lastdec >= prottime)
-		value <<= 3;
+		value >>= 3;
 
 	return value;
 }
