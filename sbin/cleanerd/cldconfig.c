@@ -373,7 +373,7 @@ nilfs_cldconfig_handle_clean_check_interval(struct nilfs_cldconfig *config,
 
 static unsigned long long
 nilfs_cldconfig_selection_policy_timestamp(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
 {
 	return si->sui_lastmod;
 }
@@ -384,49 +384,17 @@ nilfs_cldconfig_handle_selection_policy_timestamp(struct nilfs_cldconfig *config
 {
 	config->cf_selection_policy.p_importance =
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
-	config->cf_selection_policy.p_check_results =
-			NILFS_CLDCONFIG_SELECTION_POLICY_CHECK_RESULTS;
+	config->cf_selection_policy.p_check_results = 0;
 	config->cf_selection_policy.p_comparison =
 			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
 }
 
-
-static int
-nilfs_cldconfig_selection_policy_check_live_blocks(size_t pred_live_blocks, size_t live_blocks, size_t free_blocks){
-	size_t sum;
-	int pred_percentage, real_percentage;
-
-	sum = live_blocks + free_blocks;
-	pred_percentage = (int)(pred_live_blocks * 100 / sum);
-	real_percentage = (int)(live_blocks * 100 / sum);
-
-	if (real_percentage > 95 && real_percentage - pred_percentage > 80)
-		return 0;
-
-	return 1;
-}
-
 static unsigned long long
 nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
 {
-	__u32 value, max_blocks = nilfs_get_blocks_per_segment(nilfs);
-
-	if (max_blocks < si->sui_nblocks)
-		return 0;
-
-	value = max_blocks - si->sui_nblocks;
-
-	/*
-	 * the value of sui_nblocks is probably not accurate
-	 * because blocks inside the protection period are not
-	 * considered to be dead (divide value by 8)
-	 */
-	if (si->sui_lastdec >= prottime)
-		value >>= 3;
-
-	return value;
+	return si->sui_nblocks;
 }
 
 static int
@@ -435,19 +403,18 @@ nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_greedy;
-	config->cf_selection_policy.p_check_results =
-			nilfs_cldconfig_selection_policy_check_live_blocks;
+	config->cf_selection_policy.p_check_results = 1;
 	config->cf_selection_policy.p_comparison =
-			NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 	return 0;
 }
 
 static unsigned long long
 nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
-	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
+	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si)
 {
 	__u32 max_blocks, free_blocks, cleaning_cost;
-	__u64 value, age;
+	__u64 age;
 
 	max_blocks = nilfs_get_blocks_per_segment(nilfs);
 	free_blocks = max_blocks - si->sui_nblocks;
@@ -459,17 +426,7 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	if (sustat->ss_nongc_ctime < si->sui_lastmod)
 		return 0;
 
-	value = (age * free_blocks) / cleaning_cost;
-
-	/*
-	 * the value of sui_nblocks is probably not accurate
-	 * because blocks inside the protection period are not
-	 * considered to be dead (divide value by 8)
-	 */
-	if (si->sui_lastdec >= prottime)
-		value >>= 3;
-
-	return value;
+	return (age * free_blocks) / cleaning_cost;
 }
 
 static int
@@ -478,8 +435,7 @@ nilfs_cldconfig_handle_selection_policy_cost_benefit(struct nilfs_cldconfig *con
 {
 	config->cf_selection_policy.p_importance =
 			nilfs_cldconfig_selection_policy_cost_benefit;
-	config->cf_selection_policy.p_check_results =
-			nilfs_cldconfig_selection_policy_check_live_blocks;
+	config->cf_selection_policy.p_check_results = 1;
 	config->cf_selection_policy.p_comparison =
 			NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
 	return 0;

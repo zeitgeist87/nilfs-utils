@@ -612,14 +612,14 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			      __u64 *segnums, size_t nsegs,
 			      __u64 protseq, nilfs_cno_t protcno,
-			      int (*check_results)(size_t, size_t, size_t),
-			  	  size_t blocknums)
+			      int check_results, size_t blocknums)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
+	struct nilfs_vdesc *vdesc;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, i, ret = -1;
-	__u32 *nblocksv, freeblocks;
-	__u64 *lastmodv;
+	ssize_t n, i, j, ret = -1;
+	__u32 *nblocksv, freeblocks, blocks_per_seg, bsum;
+	__u64 *lastmodv, segnum;
 	struct timeval tv;
 
 	if (nsegs == 0)
@@ -683,39 +683,65 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
-	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n) - (nilfs_vector_get_size(vdescv) +
+	blocks_per_seg = nilfs_get_blocks_per_segment(nilfs);
+	freeblocks = (blocks_per_seg * n) - (nilfs_vector_get_size(vdescv) +
 			nilfs_vector_get_size(bdescv));
 
-	if (check_results && !(*check_results)(blocknums, nilfs_vector_get_size(vdescv) +
-			nilfs_vector_get_size(bdescv), freeblocks)){
-		nblocksv = malloc(sizeof(__u32) * n);
-		blocknums = (nilfs_vector_get_size(vdescv) + nilfs_vector_get_size(bdescv)) / n;
-
-		for (i = 0; i < n; ++i){
-			nblocksv[i] = blocknums;
-		}
-
-		ret = nilfs_set_suinfo(nilfs, segnums, nblocksv, NULL, n);
-		if (ret >= 0)
-			ret = -ESUINFOCHANGE;
-
-		free(nblocksv);
-	} else if (check_results && freeblocks < 50) {
-		lastmodv = malloc(sizeof(__u64) * n);
+	/*
+	 * Check if suinfo values were correct. If they were extremely off
+	 * it is probably because of a snapshot. No need to copy the
+	 * data we just reset the suinfo with correct values
+	 */
+	if (check_results && freeblocks < 25*n && blocknums < 25*n
+			&& nilfs_vector_get_size(bdescv) < 25*n
+			&& nilfs_vector_get_size(vdescv) > 0) {
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
 			goto out_lock;
 		}
 
+		lastmodv = malloc(sizeof(__u64) * n);
+		nblocksv = malloc(sizeof(__u32) * n);
+
 		for (i = 0; i < n; ++i){
 			lastmodv[i] = tv.tv_sec;
 		}
 
-		ret = nilfs_set_suinfo(nilfs, segnums, NULL, lastmodv, n);
+		/* determine the live blocks for each segment */
+		vdesc = nilfs_vector_get_element(vdescv, i);
+		segnum = vdesc->vd_blocknr / blocks_per_seg;
+		bsum = 1;
+
+		for (i = 1; i < nilfs_vector_get_size(vdescv); ++i){
+			vdesc = nilfs_vector_get_element(vdescv, i);
+
+			if (segnum == vdesc->vd_blocknr / blocks_per_seg) {
+				++bsum;
+			} else {
+				for (j = 0; j < n; ++j){
+					if (segnums[j] == segnum){
+						nblocksv[j] = bsum;
+						break;
+					}
+				}
+				segnum = vdesc->vd_blocknr / blocks_per_seg;
+				bsum = 1;
+			}
+		}
+
+		for (j = 0; j < n; ++j){
+			if (segnums[j] == segnum){
+				nblocksv[j] = bsum;
+				break;
+			}
+		}
+
+		ret = nilfs_set_suinfo(nilfs, segnums, nblocksv, lastmodv, n);
 		if (ret >= 0)
 			ret = -ESUINFOCHANGE;
 
+		free(nblocksv);
 		free(lastmodv);
 	} else {
 		ret = nilfs_clean_segments(nilfs,

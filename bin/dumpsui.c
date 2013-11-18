@@ -51,9 +51,6 @@ static int nilfs_dump_sui_do_run(struct nilfs *nilfs) {
 		return -1;
 	}
 
-	/* sui_lastdec may not be set by nilfs_get_suinfo*/
-	memset(si, 0, sizeof(si));
-
 	for (segnum = 0; segnum < sustat.ss_nsegs; segnum += n) {
 		count = (sustat.ss_nsegs - segnum < NILFS_CLEANERD_NSUINFO) ?
 			sustat.ss_nsegs - segnum : NILFS_CLEANERD_NSUINFO;
@@ -62,7 +59,7 @@ static int nilfs_dump_sui_do_run(struct nilfs *nilfs) {
 			goto out;
 		}
 		for (i = 0; i < n; i++) {
-			printf("%llu %lu %llu\n", si[i].sui_lastmod, (unsigned long)si[i].sui_nblocks, si[i].sui_lastdec);
+			printf("%llu %lu\n", si[i].sui_lastmod, (unsigned long)si[i].sui_nblocks);
 		}
 	}
 	ret = 0;
