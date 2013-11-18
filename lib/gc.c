@@ -391,10 +391,12 @@ static ssize_t nilfs_get_snapshot(struct nilfs *nilfs, nilfs_cno_t **ssp)
  * @ss: checkpoint numbers of snapshots
  * @n: size of @ss array
  * @last_hit: the last snapshot number hit
+ * @sscount: snapshot count - number of blocks protected by snapshots
  */
 static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 			       nilfs_cno_t protect, const nilfs_cno_t *ss,
-			       size_t n, nilfs_cno_t *last_hit)
+			       size_t n, nilfs_cno_t *last_hit,
+			       size_t *sscount)
 {
 	long low, high, index;
 
@@ -418,8 +420,10 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 
 	/* Try the last hit snapshot number */
 	if (*last_hit >= vdesc->vd_period.p_start &&
-	    *last_hit < vdesc->vd_period.p_end)
+	    *last_hit < vdesc->vd_period.p_end) {
+		++(*sscount);
 		return 1;
+	}
 
 	low = 0;
 	high = n - 1;
@@ -435,6 +439,7 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		} else {
 			/* ss[index] is in the range [p_start, p_end) */
 			*last_hit = ss[index];
+			++(*sscount);
 			return 1;
 		}
 	}
@@ -448,6 +453,7 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
  * @periodv: vector object to store deletable checkpoint numbers (periods)
  * @vblocknrv: vector object to store deletable virtual block numbers
  * @protcno: start number of checkpoint to be protected
+ * @sscount: snapshot count - number of blocks protected by snapshots
  *
  * nilfs_cleanerd_toss_vdescs() deselects virtual block numbers of files
  * other than the DAT file.
@@ -456,7 +462,8 @@ static int nilfs_toss_vdescs(struct nilfs *nilfs,
 			     struct nilfs_vector *vdescv,
 			     struct nilfs_vector *periodv,
 			     struct nilfs_vector *vblocknrv,
-			     nilfs_cno_t protcno)
+			     nilfs_cno_t protcno,
+			     size_t *sscount)
 {
 	struct nilfs_vdesc *vdesc;
 	struct nilfs_period *periodp;
@@ -475,7 +482,7 @@ static int nilfs_toss_vdescs(struct nilfs *nilfs,
 			vdesc = nilfs_vector_get_element(vdescv, j);
 			assert(vdesc != NULL);
 			if (nilfs_vdesc_is_live(vdesc, protcno, ss, n,
-						&last_hit))
+						&last_hit, sscount))
 				break;
 
 			/*
@@ -618,6 +625,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	struct nilfs_vdesc *vdesc;
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, i, j, ret = -1;
+	size_t sscount = 0;
 	__u32 *nblocksv, freeblocks, blocks_per_seg, bsum;
 	__u64 *lastmodv, segnum;
 	struct timeval tv;
@@ -657,7 +665,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	if (ret < 0)
 		goto out_lock;
 
-	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno);
+	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno, sscount);
 	if (ret < 0)
 		goto out_lock;
 
@@ -694,7 +702,8 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	 */
 	if (check_results && freeblocks < 25*n && blocknums < 25*n
 			&& nilfs_vector_get_size(bdescv) < 25*n
-			&& nilfs_vector_get_size(vdescv) > 0) {
+			&& nilfs_vector_get_size(vdescv) > 0
+			&& sscount > 25*n) {
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
