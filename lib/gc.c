@@ -665,7 +665,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	if (ret < 0)
 		goto out_lock;
 
-	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno, sscount);
+	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno, &sscount);
 	if (ret < 0)
 		goto out_lock;
 
