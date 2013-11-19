@@ -626,7 +626,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, i, j, ret = -1;
 	size_t sscount = 0;
-	__u32 *nblocksv, freeblocks, blocks_per_seg, bsum;
+	__u32 *nblocksv, freeblocks, blocks_per_seg, bsum, minblocks;
 	__u64 *lastmodv, segnum;
 	struct timeval tv;
 
@@ -694,16 +694,17 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	blocks_per_seg = nilfs_get_blocks_per_segment(nilfs);
 	freeblocks = (blocks_per_seg * n) - (nilfs_vector_get_size(vdescv) +
 			nilfs_vector_get_size(bdescv));
+	minblocks = (blocks_per_seg >> 5) * n;
 
 	/*
 	 * Check if suinfo values were correct. If they were extremely off
 	 * it is probably because of a snapshot. No need to copy the
 	 * data we just reset the suinfo with correct values
 	 */
-	if (check_results && freeblocks < 75*n && blocknums < 75*n
-			&& nilfs_vector_get_size(bdescv) < 75*n
+	if (check_results && freeblocks < minblocks && blocknums < minblocks
+			&& nilfs_vector_get_size(bdescv) < minblocks
 			&& nilfs_vector_get_size(vdescv) > 0
-			&& sscount > 75*n) {
+			&& sscount > minblocks) {
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
