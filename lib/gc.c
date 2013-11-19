@@ -700,10 +700,10 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	 * it is probably because of a snapshot. No need to copy the
 	 * data we just reset the suinfo with correct values
 	 */
-	if (check_results && freeblocks < 25*n && blocknums < 25*n
-			&& nilfs_vector_get_size(bdescv) < 25*n
+	if (check_results && freeblocks < 75*n && blocknums < 75*n
+			&& nilfs_vector_get_size(bdescv) < 75*n
 			&& nilfs_vector_get_size(vdescv) > 0
-			&& sscount > 25*n) {
+			&& sscount > 75*n) {
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
