@@ -396,7 +396,7 @@ static ssize_t nilfs_get_snapshot(struct nilfs *nilfs, nilfs_cno_t **ssp)
 static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 			       nilfs_cno_t protect, const nilfs_cno_t *ss,
 			       size_t n, nilfs_cno_t *last_hit,
-			       size_t *sscount)
+			       size_t *ppcount)
 {
 	long low, high, index;
 
@@ -410,9 +410,14 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		return vdesc->vd_period.p_end == NILFS_CNO_MAX;
 	}
 
-	if (vdesc->vd_period.p_end == NILFS_CNO_MAX ||
-	    vdesc->vd_period.p_end > protect)
+	if (vdesc->vd_period.p_end == NILFS_CNO_MAX)
 		return 1;
+
+	if (vdesc->vd_period.p_end > protect) {
+		++(*ppcount);
+		return 1;
+	}
+
 
 	if (n == 0 || vdesc->vd_period.p_start > ss[n - 1] ||
 	    vdesc->vd_period.p_end <= ss[0])
@@ -420,10 +425,8 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 
 	/* Try the last hit snapshot number */
 	if (*last_hit >= vdesc->vd_period.p_start &&
-	    *last_hit < vdesc->vd_period.p_end) {
-		++(*sscount);
+	    *last_hit < vdesc->vd_period.p_end)
 		return 1;
-	}
 
 	low = 0;
 	high = n - 1;
@@ -439,7 +442,6 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		} else {
 			/* ss[index] is in the range [p_start, p_end) */
 			*last_hit = ss[index];
-			++(*sscount);
 			return 1;
 		}
 	}
@@ -463,7 +465,7 @@ static int nilfs_toss_vdescs(struct nilfs *nilfs,
 			     struct nilfs_vector *periodv,
 			     struct nilfs_vector *vblocknrv,
 			     nilfs_cno_t protcno,
-			     size_t *sscount)
+			     size_t *ppcount)
 {
 	struct nilfs_vdesc *vdesc;
 	struct nilfs_period *periodp;
@@ -482,7 +484,7 @@ static int nilfs_toss_vdescs(struct nilfs *nilfs,
 			vdesc = nilfs_vector_get_element(vdescv, j);
 			assert(vdesc != NULL);
 			if (nilfs_vdesc_is_live(vdesc, protcno, ss, n,
-						&last_hit, sscount))
+						&last_hit, ppcount))
 				break;
 
 			/*
@@ -625,7 +627,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	struct nilfs_vdesc *vdesc;
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, i, j, ret = -1;
-	size_t sscount = 0;
+	size_t ppcount = 0;
 	__u32 *nblocksv, freeblocks, blocks_per_seg, bsum, minblocks;
 	__u64 *lastmodv, segnum;
 	struct timeval tv;
@@ -665,7 +667,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	if (ret < 0)
 		goto out_lock;
 
-	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno, &sscount);
+	ret = nilfs_toss_vdescs(nilfs, vdescv, periodv, vblocknrv, protcno, &ppcount);
 	if (ret < 0)
 		goto out_lock;
 
@@ -704,7 +706,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	if (check_results && freeblocks < minblocks && blocknums < minblocks
 			&& nilfs_vector_get_size(bdescv) < minblocks
 			&& nilfs_vector_get_size(vdescv) > 0
-			&& sscount > minblocks) {
+			&& ppcount == 0) {
 
 		if (gettimeofday(&tv, NULL) < 0) {
 			ret = -1;
