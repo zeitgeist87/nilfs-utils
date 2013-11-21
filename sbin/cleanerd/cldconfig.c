@@ -404,10 +404,10 @@ nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
 	/*
 	 * the value of sui_nblocks is probably not accurate
 	 * because blocks inside the protection period are not
-	 * considered to be dead (divide value by 8)
+	 * considered to be dead
 	 */
 	if (si->sui_lastdec >= prottime)
-		value >>= 3;
+		value = 0;
 
 	return value;
 }
@@ -429,27 +429,31 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
 {
 	__u32 max_blocks, free_blocks, cleaning_cost;
-	__u64 value, age;
+	unsigned long long value, age;
 
 	max_blocks = nilfs_get_blocks_per_segment(nilfs);
 	free_blocks = max_blocks - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
-	cleaning_cost = max_blocks + si->sui_nblocks;
+	/* cleaning_cost = max_blocks + si->sui_nblocks; */
+	cleaning_cost = si->sui_nblocks;
 	/* multiply by 1000 to convert age to milliseconds (higher precision for division) */
 	age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
 
 	if (sustat->ss_nongc_ctime < si->sui_lastmod)
 		return 0;
 
-	value = (age * free_blocks) / cleaning_cost;
+	if (cleaning_cost == 0)
+		value = ULLONG_MAX;
+	else
+		value = (age * free_blocks) / cleaning_cost;
 
 	/*
 	 * the value of sui_nblocks is probably not accurate
 	 * because blocks inside the protection period are not
-	 * considered to be dead (divide value by 8)
+	 * considered to be dead
 	 */
 	if (si->sui_lastdec >= prottime)
-		value >>= 3;
+		value = 0;
 
 	return value;
 }
