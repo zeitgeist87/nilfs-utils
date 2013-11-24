@@ -828,6 +828,38 @@ struct nilfs_vdesc {
 	__u32 vd_pad;
 };
 
+/* vdesc flag */
+enum {
+	NILFS_VDESC_DATA,
+	NILFS_VDESC_NODE,
+	NILFS_VDESC_SNAPSHOT,
+	NILFS_VDESC_PROTECTION_PERIOD,
+	/* ... */
+};
+
+#define NILFS_VDESC_FNS(flag, name)				\
+static inline void							\
+nilfs_vdesc_set_##name(struct nilfs_vdesc *su)		\
+{									\
+	su->vd_flags = su->vd_flags | (1UL << NILFS_VDESC_##flag);\
+}									\
+static inline void							\
+nilfs_vdesc_clear_##name(struct nilfs_vdesc *su)	\
+{									\
+	su->vd_flags = su->vd_flags &	~(1UL << NILFS_VDESC_##flag);      \
+}									\
+static inline int							\
+nilfs_vdesc_##name(const struct nilfs_vdesc *su)	\
+{									\
+	return !!(su->vd_flags &				\
+		  (1UL << NILFS_VDESC_##flag));			\
+}
+
+NILFS_VDESC_FNS(DATA, data)
+NILFS_VDESC_FNS(NODE, node)
+NILFS_VDESC_FNS(SNAPSHOT, snapshot)
+NILFS_VDESC_FNS(PROTECTION_PERIOD, protection_period)
+
 /**
  * struct nilfs_bdesc - descriptor of disk block number
  * @bd_ino: inode number

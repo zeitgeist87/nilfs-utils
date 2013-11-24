@@ -147,17 +147,18 @@ static int nilfs_acc_blocks_file(struct nilfs_file *file,
 			vdesc->vd_ino = ino;
 			vdesc->vd_cno = cno;
 			vdesc->vd_blocknr = blk.b_blocknr;
+			vdesc->vd_flags = 0;
 			if (nilfs_block_is_data(&blk)) {
 				binfo = blk.b_binfo;
 				vdesc->vd_vblocknr =
 					le64_to_cpu(binfo->bi_v.bi_vblocknr);
 				vdesc->vd_offset =
 					le64_to_cpu(binfo->bi_v.bi_blkoff);
-				vdesc->vd_flags = 0;	/* data */
+				nilfs_vdesc_set_data(vdesc); /* data */
 			} else {
 				vdesc->vd_vblocknr =
 					le64_to_cpu(*(__le64 *)blk.b_binfo);
-				vdesc->vd_flags = 1;	/* node */
+				nilfs_vdesc_set_node(vdesc); /* node */
 			}
 		}
 	}
@@ -393,7 +394,7 @@ static ssize_t nilfs_get_snapshot(struct nilfs *nilfs, nilfs_cno_t **ssp)
  * @last_hit: the last snapshot number hit
  * @sscount: snapshot count - number of blocks protected by snapshots
  */
-static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
+static int nilfs_vdesc_is_live(struct nilfs_vdesc *vdesc,
 			       nilfs_cno_t protect, const nilfs_cno_t *ss,
 			       size_t n, nilfs_cno_t *last_hit,
 			       size_t *ppcount)
@@ -415,6 +416,7 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 
 	if (vdesc->vd_period.p_end > protect) {
 		++(*ppcount);
+		nilfs_vdesc_set_protection_period(vdesc);
 		return 1;
 	}
 
@@ -425,8 +427,10 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 
 	/* Try the last hit snapshot number */
 	if (*last_hit >= vdesc->vd_period.p_start &&
-	    *last_hit < vdesc->vd_period.p_end)
+	    *last_hit < vdesc->vd_period.p_end) {
+		nilfs_vdesc_set_snapshot(vdesc);
 		return 1;
+	}
 
 	low = 0;
 	high = n - 1;
@@ -442,6 +446,7 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		} else {
 			/* ss[index] is in the range [p_start, p_end) */
 			*last_hit = ss[index];
+			nilfs_vdesc_set_snapshot(vdesc);
 			return 1;
 		}
 	}
