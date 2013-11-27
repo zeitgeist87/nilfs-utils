@@ -619,13 +619,14 @@ ssize_t nilfs_get_bdescs(const struct nilfs *nilfs,
  * @nbdescs:
  * @segnums:
  * @nsegs:
+ * @only_update_segusg:
  */
 int nilfs_clean_segments(struct nilfs *nilfs,
 			 struct nilfs_vdesc *vdescs, size_t nvdescs,
 			 struct nilfs_period *periods, size_t nperiods,
 			 __u64 *vblocknrs, size_t nvblocknrs,
 			 struct nilfs_bdesc *bdescs, size_t nbdescs,
-			 __u64 *segnums, size_t nsegs)
+			 __u64 *segnums, size_t nsegs, int only_update_segusg)
 {
 	struct nilfs_argv argv[5];
 
@@ -637,6 +638,9 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 	argv[0].v_base = (unsigned long)vdescs;
 	argv[0].v_nmembs = nvdescs;
 	argv[0].v_size = sizeof(struct nilfs_vdesc);
+	argv[0].v_flags = 0;
+	if (only_update_segusg)
+		argv[0].v_flags = 1;
 	argv[1].v_base = (unsigned long)periods;
 	argv[1].v_nmembs = nperiods;
 	argv[1].v_size = sizeof(struct nilfs_period);
@@ -650,28 +654,6 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 	argv[4].v_nmembs = nsegs;
 	argv[4].v_size = sizeof(__u64);
 	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_CLEAN_SEGMENTS, argv);
-}
-
-int nilfs_set_suinfo(struct nilfs *nilfs,
-			 __u64 *segnumv, __u32 *nblocksv, __u64 *lastmodv, size_t nsegs)
-{
-	struct nilfs_argv argv[3];
-
-	if (nilfs->n_iocfd < 0) {
-		errno = EBADF;
-		return -1;
-	}
-
-	argv[0].v_base = (unsigned long)segnumv;
-	argv[0].v_nmembs = nsegs;
-	argv[0].v_size = sizeof(__u64);
-	argv[1].v_base = (unsigned long)nblocksv;
-	argv[1].v_nmembs = nsegs;
-	argv[1].v_size = sizeof(__u32);
-	argv[2].v_base = (unsigned long)lastmodv;
-	argv[2].v_nmembs = nsegs;
-	argv[2].v_size = sizeof(__u64);
-	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_SET_SUINFO, argv);
 }
 
 /**
