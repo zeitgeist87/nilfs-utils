@@ -718,7 +718,10 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
 	} else {
-		ret = n;
+		if (only_update_segusg)
+			ret = -ESUINFOCHANGE;
+		else
+			ret = n;
 	}
 
 out_lock:
