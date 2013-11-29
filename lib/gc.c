@@ -691,7 +691,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	blocks_per_seg = nilfs_get_blocks_per_segment(nilfs);
 	freeblocks = (blocks_per_seg * n) - (nilfs_vector_get_size(vdescv) +
 			nilfs_vector_get_size(bdescv));
-	minblocks = (blocks_per_seg >> 5) * n;
+	minblocks = (blocks_per_seg >> 3) * n;
 
 	/*
 	 * Check if suinfo values were correct. If they were extremely off
