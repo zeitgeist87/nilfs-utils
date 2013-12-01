@@ -407,7 +407,7 @@ nilfs_cldconfig_selection_policy_greedy(struct nilfs *nilfs,
 	 * considered to be dead
 	 */
 	if (si->sui_lastdec >= prottime)
-		value = 0;
+		value >>= 4;
 
 	return value;
 }
@@ -428,13 +428,12 @@ static unsigned long long
 nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	       struct nilfs_sustat *sustat, const struct nilfs_suinfo *si, __u64 prottime)
 {
-	__u32 max_blocks, free_blocks, cleaning_cost;
+	__u32 free_blocks, cleaning_cost;
 	unsigned long long value, age;
 
-	max_blocks = nilfs_get_blocks_per_segment(nilfs);
-	free_blocks = max_blocks - si->sui_nblocks;
+	free_blocks = nilfs_get_blocks_per_segment(nilfs) - si->sui_nblocks;
 	/* read the whole segment + write the live blocks */
-	cleaning_cost = max_blocks + si->sui_nblocks;
+	cleaning_cost = 2 * si->sui_nblocks;
 	/* multiply by 1000 to convert age to milliseconds (higher precision for division) */
 	age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
 
@@ -442,9 +441,10 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 		return 0;
 
 	if (cleaning_cost == 0)
-		value = ULLONG_MAX;
-	else
-		value = (age * free_blocks) / cleaning_cost;
+		cleaning_cost = 1;
+
+
+	value = (age * free_blocks) / cleaning_cost;
 
 	/*
 	 * the value of sui_nblocks is probably not accurate
@@ -452,7 +452,7 @@ nilfs_cldconfig_selection_policy_cost_benefit(struct nilfs *nilfs,
 	 * considered to be dead
 	 */
 	if (si->sui_lastdec >= prottime)
-		value = 0;
+		value >>= 4;
 
 	return value;
 }
