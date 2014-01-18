@@ -167,6 +167,7 @@ struct nilfs_cleanerd {
 	int running;
 	int fallback;
 	int retry_cleaning;
+	int no_timeout;
 	int shutdown;
 	long ncleansegs;
 	struct timeval cleaning_interval;
@@ -873,7 +874,7 @@ static int nilfs_cleanerd_recalc_interval(struct nilfs_cleanerd *cleanerd,
 	interval = nilfs_cleanerd_cleaning_interval(cleanerd);
 	/* timercmp() does not work for '>=' or '<='. */
 	/* curr >= target */
-	if (!timercmp(&curr, &cleanerd->target, <)) {
+	if (!timercmp(&curr, &cleanerd->target, <) || cleanerd->no_timeout) {
 		cleanerd->timeout.tv_sec = 0;
 		cleanerd->timeout.tv_usec = 0;
 		timeradd(&curr, interval, &cleanerd->target);
@@ -1348,6 +1349,7 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 		       "number: %m");
 		goto out;
 	}
+	cleanerd->no_timeout = 0;
 
 	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums, nsegs,
 				    protseq, protcno);
@@ -1373,6 +1375,11 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 			cleanerd->retry_cleaning = 0;
 		}
 
+	} else if (ret == -ETRYAGAIN) {
+		cleanerd->fallback = 0;
+		cleanerd->retry_cleaning = 1;
+		cleanerd->no_timeout = 1;
+		ret = 0;
 	} else if (ret < 0 && errno == ENOMEM) {
 		nilfs_cleanerd_reduce_ncleansegs_for_retry(cleanerd);
 		cleanerd->fallback = 1;
@@ -1415,6 +1422,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 	cleanerd->running = 1;
 	cleanerd->fallback = 0;
 	cleanerd->retry_cleaning = 0;
+	cleanerd->no_timeout = 0;
 	nilfs_cnoconv_reset(cleanerd->cnoconv);
 	nilfs_gc_logger = syslog;
 
