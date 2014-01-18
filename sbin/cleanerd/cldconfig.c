@@ -456,6 +456,20 @@ nilfs_cldconfig_handle_mc_nsegments_per_clean(struct nilfs_cldconfig *config,
 }
 
 static int
+nilfs_cldconfig_handle_min_free_blocks_for_cleaning(struct nilfs_cldconfig *config,
+					      char **tokens, size_t ntoks,
+					      struct nilfs *nilfs)
+{
+	unsigned long n;
+
+	if (nilfs_cldconfig_get_ulong_argument(tokens, ntoks, &n) < 0)
+		return 0;
+
+	config->cf_min_free_blocks_for_cleaning = n;
+	return 0;
+}
+
+static int
 nilfs_cldconfig_handle_cleaning_interval(struct nilfs_cldconfig *config,
 					 char **tokens, size_t ntoks,
 					 struct nilfs *nilfs)
@@ -576,6 +590,10 @@ nilfs_cldconfig_keyword_table[] = {
 		"log_priority", 2, 2,
 		nilfs_cldconfig_handle_log_priority
 	},
+	{
+		"min_free_blocks_for_cleaning", 2, 2,
+		nilfs_cldconfig_handle_min_free_blocks_for_cleaning
+	},
 };
 
 #define NILFS_CLDCONFIG_NKEYWORDS			\
@@ -641,6 +659,8 @@ static void nilfs_cldconfig_set_default(struct nilfs_cldconfig *config,
 	config->cf_retry_interval.tv_usec = 0;
 	config->cf_use_mmap = NILFS_CLDCONFIG_USE_MMAP;
 	config->cf_log_priority = NILFS_CLDCONFIG_LOG_PRIORITY;
+	config->cf_min_free_blocks_for_cleaning =
+		NILFS_CLDCONFIG_MIN_FREE_BLOCKS_FOR_CLEANING;
 }
 
 static inline int iseol(int c)
