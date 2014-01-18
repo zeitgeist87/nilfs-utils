@@ -1352,7 +1352,7 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 	cleanerd->no_timeout = 0;
 
 	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums, nsegs, protseq,
-					protcno, cleanerd->config->cf_min_free_blocks_for_cleaning);
+					protcno, cleanerd->config.cf_min_free_blocks_for_cleaning);
 	if (ret > 0) {
 		for (i = 0; i < ret; i++)
 			syslog(LOG_DEBUG, "segment %llu cleaned",
