@@ -595,7 +595,7 @@ static ssize_t nilfs_resize_move_segments(struct nilfs *nilfs,
 			return -1;
 
 		ret = nilfs_reclaim_segment(nilfs, snp, nc,
-					    sustat.ss_prot_seq, 0);
+					    sustat.ss_prot_seq, 0, 0);
 		if (ret < 0)
 			return -1;
 

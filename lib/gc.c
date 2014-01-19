@@ -607,10 +607,11 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
  * @nsegs: size of the @segnums array
  * @protseq: start of sequence number of protected segments
  * @protcno: start checkpoint number of protected period
+ * @minblocks: minimal number of free blocks in a segment
  */
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
-			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno)
+			      __u64 *segnums, size_t nsegs, __u64 protseq,
+			      nilfs_cno_t protcno, unsigned long minblocks)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
