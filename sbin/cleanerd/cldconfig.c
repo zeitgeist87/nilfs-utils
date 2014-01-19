@@ -456,9 +456,9 @@ nilfs_cldconfig_handle_mc_nsegments_per_clean(struct nilfs_cldconfig *config,
 }
 
 static int
-nilfs_cldconfig_handle_min_free_blocks_for_cleaning(struct nilfs_cldconfig *config,
-					      char **tokens, size_t ntoks,
-					      struct nilfs *nilfs)
+nilfs_cldconfig_handle_min_free_blocks(struct nilfs_cldconfig *config,
+				       char **tokens, size_t ntoks,
+				       struct nilfs *nilfs)
 {
 	unsigned long n;
 
@@ -592,7 +592,7 @@ nilfs_cldconfig_keyword_table[] = {
 	},
 	{
 		"min_free_blocks_for_cleaning", 2, 2,
-		nilfs_cldconfig_handle_min_free_blocks_for_cleaning
+		nilfs_cldconfig_handle_min_free_blocks
 	},
 };
 
