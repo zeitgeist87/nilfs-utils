@@ -702,7 +702,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 				strerror(errno));
 	} else {
 		if (cleaning_flags)
-			ret = -ETRYAGAIN;
+			ret = -EGCTRYAGAIN;
 		else
 			ret = n;
 	}
