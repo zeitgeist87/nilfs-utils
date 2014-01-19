@@ -731,6 +731,12 @@ struct nilfs_cpmode {
 	__u32 cm_pad;
 };
 
+/* values for v_flags */
+enum {
+	NILFS_CLEAN_SEGMENTS_DEFAULT,
+	NILFS_CLEAN_SEGMENTS_UPDATE_SEGUSG,
+};
+
 /**
  * struct nilfs_argv - argument vector
  * @v_base: pointer on data array from userspace

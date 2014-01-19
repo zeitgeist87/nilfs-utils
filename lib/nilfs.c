@@ -627,7 +627,7 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 			 struct nilfs_period *periods, size_t nperiods,
 			 __u64 *vblocknrs, size_t nvblocknrs,
 			 struct nilfs_bdesc *bdescs, size_t nbdescs,
-			 __u64 *segnums, size_t nsegs)
+			 __u64 *segnums, size_t nsegs, int flags)
 {
 	struct nilfs_argv argv[5];
 
@@ -639,6 +639,7 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 	argv[0].v_base = (unsigned long)vdescs;
 	argv[0].v_nmembs = nvdescs;
 	argv[0].v_size = sizeof(struct nilfs_vdesc);
+	argv[0].v_flags = flags;
 	argv[1].v_base = (unsigned long)periods;
 	argv[1].v_nmembs = nperiods;
 	argv[1].v_size = sizeof(struct nilfs_period);

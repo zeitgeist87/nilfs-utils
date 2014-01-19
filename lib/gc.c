@@ -616,6 +616,8 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, ret = -1;
+	__u32 freeblocks;
+	int cleaning_flags = NILFS_CLEAN_SEGMENTS_DEFAULT;
 
 	if (nsegs == 0)
 		return 0;
@@ -678,6 +680,13 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
+	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
+				- (nilfs_vector_get_size(vdescv)
+				+ nilfs_vector_get_size(bdescv));
+
+	if (freeblocks < minblocks * n)
+		cleaning_flags = NILFS_CLEAN_SEGMENTS_UPDATE_SEGUSG;
+
 	ret = nilfs_clean_segments(nilfs,
 				   nilfs_vector_get_data(vdescv),
 				   nilfs_vector_get_size(vdescv),
@@ -687,12 +696,15 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 				   nilfs_vector_get_size(vblocknrv),
 				   nilfs_vector_get_data(bdescv),
 				   nilfs_vector_get_size(bdescv),
-				   segnums, n);
+				   segnums, n, cleaning_flags);
 	if (ret < 0) {
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
 	} else {
-		ret = n;
+		if (cleaning_flags == NILFS_CLEAN_SEGMENTS_UPDATE_SEGUSG)
+			ret = -EGCTRYAGAIN;
+		else
+			ret = n;
 	}
 
 out_lock:
