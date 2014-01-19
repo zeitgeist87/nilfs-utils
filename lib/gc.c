@@ -29,6 +29,10 @@
 #include <syslog.h>
 #endif	/* HAVE_SYSLOG_H */
 
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif	/* HAVE_SYS_TIME */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -615,9 +619,10 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, ret = -1;
+	ssize_t n, i, ret = -1;
 	__u32 freeblocks;
-	int cleaning_flags = NILFS_CLEAN_SEGMENTS_DEFAULT;
+	struct nilfs_suinfo_update *supv;
+	struct timeval tv;
 
 	if (nsegs == 0)
 		return 0;
@@ -683,25 +688,44 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
 				- (nilfs_vector_get_size(vdescv)
 				+ nilfs_vector_get_size(bdescv));
+	minblocks *= n;
 
-	if (freeblocks < minblocks * n)
-		cleaning_flags = NILFS_CLEAN_SEGMENTS_UPDATE_SEGUSG;
+	if (freeblocks < minblocks) {
+		ret = -1;
+		if (gettimeofday(&tv, NULL) < 0)
+			goto out_ret;
 
-	ret = nilfs_clean_segments(nilfs,
-				   nilfs_vector_get_data(vdescv),
-				   nilfs_vector_get_size(vdescv),
-				   nilfs_vector_get_data(periodv),
-				   nilfs_vector_get_size(periodv),
-				   nilfs_vector_get_data(vblocknrv),
-				   nilfs_vector_get_size(vblocknrv),
-				   nilfs_vector_get_data(bdescv),
-				   nilfs_vector_get_size(bdescv),
-				   segnums, n, cleaning_flags);
+		supv = malloc(sizeof(struct nilfs_suinfo_update) * n);
+		if (supv == NULL)
+			goto out_ret;
+
+		for (i = 0; i < n; ++i) {
+			supv[i].sup_segnum = segnums[i];
+			supv[i].sup_flags = 0;
+			nilfs_suinfo_update_set_lastmod(&supv[i]);
+			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
+		}
+		ret = nilfs_set_suinfo(nilfs, supv, n);
+		free(supv);
+	} else {
+		ret = nilfs_clean_segments(nilfs,
+					   nilfs_vector_get_data(vdescv),
+					   nilfs_vector_get_size(vdescv),
+					   nilfs_vector_get_data(periodv),
+					   nilfs_vector_get_size(periodv),
+					   nilfs_vector_get_data(vblocknrv),
+					   nilfs_vector_get_size(vblocknrv),
+					   nilfs_vector_get_data(bdescv),
+					   nilfs_vector_get_size(bdescv),
+					   segnums, n);
+	}
+
+out_ret:
 	if (ret < 0) {
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
 	} else {
-		if (cleaning_flags == NILFS_CLEAN_SEGMENTS_UPDATE_SEGUSG)
+		if (freeblocks < minblocks)
 			ret = -EGCTRYAGAIN;
 		else
 			ret = n;
