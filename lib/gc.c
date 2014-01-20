@@ -691,13 +691,15 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	minblocks *= n;
 
 	if (freeblocks < minblocks) {
-		ret = -1;
-		if (gettimeofday(&tv, NULL) < 0)
-			goto out_ret;
+		ret = gettimeofday(&tv, NULL);
+		if (ret < 0)
+			goto out_lock;
 
 		supv = malloc(sizeof(struct nilfs_suinfo_update) * n);
-		if (supv == NULL)
-			goto out_ret;
+		if (supv == NULL) {
+			ret = -1;
+			goto out_lock;
+		}
 
 		for (i = 0; i < n; ++i) {
 			supv[i].sup_segnum = segnums[i];
@@ -705,30 +707,31 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			nilfs_suinfo_update_set_lastmod(&supv[i]);
 			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
 		}
+
 		ret = nilfs_set_suinfo(nilfs, supv, n);
 		free(supv);
-	} else {
-		ret = nilfs_clean_segments(nilfs,
-					   nilfs_vector_get_data(vdescv),
-					   nilfs_vector_get_size(vdescv),
-					   nilfs_vector_get_data(periodv),
-					   nilfs_vector_get_size(periodv),
-					   nilfs_vector_get_data(vblocknrv),
-					   nilfs_vector_get_size(vblocknrv),
-					   nilfs_vector_get_data(bdescv),
-					   nilfs_vector_get_size(bdescv),
-					   segnums, n);
+		if (ret == 0) {
+			ret = -EGCTRYAGAIN;
+			goto out_lock;
+		}
 	}
 
-out_ret:
+	ret = nilfs_clean_segments(nilfs,
+				   nilfs_vector_get_data(vdescv),
+				   nilfs_vector_get_size(vdescv),
+				   nilfs_vector_get_data(periodv),
+				   nilfs_vector_get_size(periodv),
+				   nilfs_vector_get_data(vblocknrv),
+				   nilfs_vector_get_size(vblocknrv),
+				   nilfs_vector_get_data(bdescv),
+				   nilfs_vector_get_size(bdescv),
+				   segnums, n);
+
 	if (ret < 0) {
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
 	} else {
-		if (freeblocks < minblocks)
-			ret = -EGCTRYAGAIN;
-		else
-			ret = n;
+		ret = n;
 	}
 
 out_lock:
