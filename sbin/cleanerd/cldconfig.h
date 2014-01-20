@@ -102,7 +102,8 @@ struct nilfs_cldconfig {
 	struct timeval cf_retry_interval;
 	int cf_use_mmap;
 	int cf_log_priority;
-	unsigned long cf_min_free_blocks_for_cleaning;
+	unsigned long cf_min_free_blocks_threshold;
+	unsigned long cf_mc_min_free_blocks_threshold;
 };
 
 #define NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE	\
@@ -121,7 +122,8 @@ struct nilfs_cldconfig {
 #define NILFS_CLDCONFIG_RETRY_INTERVAL			60
 #define NILFS_CLDCONFIG_USE_MMAP			1
 #define NILFS_CLDCONFIG_LOG_PRIORITY			LOG_INFO
-#define NILFS_CLDCONFIG_MIN_FREE_BLOCKS_FOR_CLEANING		128
+#define NILFS_CLDCONFIG_MIN_FREE_BLOCKS_THRESHOLD	256
+#define NILFS_CLDCONFIG_MC_MIN_FREE_BLOCKS_THRESHOLD	128
 
 #define NILFS_CLDCONFIG_NSEGMENTS_PER_CLEAN_MAX	32
 

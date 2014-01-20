@@ -548,9 +548,8 @@ ssize_t nilfs_get_suinfo(const struct nilfs *nilfs, __u64 segnum,
 /**
  * nilfs_set_suinfo -
  * @nilfs:
- * @segnum:
- * @si:
- * @nsi:
+ * @sup: an array of nilfs_suinfo_update structs
+ * @nsup: number of elements in sup
  */
 ssize_t nilfs_set_suinfo(const struct nilfs *nilfs,
 			 struct nilfs_suinfo_update *sup, size_t nsup)

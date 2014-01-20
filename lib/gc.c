@@ -688,9 +688,11 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
 				- (nilfs_vector_get_size(vdescv)
 				+ nilfs_vector_get_size(bdescv));
-	minblocks *= n;
 
-	if (freeblocks < minblocks) {
+	/* if there are less free blocks than the
+	 * minimal threshold try to set suinfo
+	 * instead of cleaning */
+	if (freeblocks < minblocks * n) {
 		ret = gettimeofday(&tv, NULL);
 		if (ret < 0)
 			goto out_lock;
