@@ -712,7 +712,7 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 
 		ret = nilfs_set_suinfo(nilfs, supv, n);
 		free(supv);
-		if (ret == 0) {
+		if (ret >= 0) {
 			ret = -EGCTRYAGAIN;
 			goto out_lock;
 		}
