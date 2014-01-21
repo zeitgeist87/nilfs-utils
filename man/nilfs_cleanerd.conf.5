@@ -79,6 +79,15 @@ Specify whether to use \fBmmap\fP(2) for reading segments.  At
 present, this option is enabled if supported regardless of this
 directive.
 .TP
+.B min_free_blocks_threshold
+Specify the minimal number of free blocks before a segment can be
+cleaned. Set to 0 to disable it. The default value is 256.
+.TP
+.B mc_min_free_blocks_threshold
+Specify the minimal number of free blocks before a segment can be
+cleaned if clean segments < min_clean_segments. Set to 0 to disable it.
+The default value is 128.
+.TP
 .B log_priority
 Gives the verbosity level that is used when logging messages from
 \fBnilfs_cleanerd\fP(8).  The possible values are: \fBemerg\fP,
