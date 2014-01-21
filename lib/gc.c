@@ -29,6 +29,10 @@
 #include <syslog.h>
 #endif	/* HAVE_SYSLOG_H */
 
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif	/* HAVE_SYS_TIME */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -615,7 +619,10 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, ret = -1;
+	ssize_t n, i, ret = -1;
+	__u32 freeblocks;
+	struct nilfs_suinfo_update *supv;
+	struct timeval tv;
 
 	if (nsegs == 0)
 		return 0;
@@ -676,6 +683,41 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 	if (sigismember(&waitset, SIGINT) || sigismember(&waitset, SIGTERM)) {
 		nilfs_gc_logger(LOG_DEBUG, "interrupted");
 		goto out_lock;
+	}
+
+	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
+				- (nilfs_vector_get_size(vdescv)
+				+ nilfs_vector_get_size(bdescv));
+
+	/* if there are less free blocks than the
+	 * minimal threshold try to update suinfo
+	 * instead of cleaning */
+	if (freeblocks < minblocks * n) {
+		ret = gettimeofday(&tv, NULL);
+		if (ret < 0)
+			goto out_lock;
+
+		supv = malloc(sizeof(struct nilfs_suinfo_update) * n);
+		if (supv == NULL) {
+			ret = -1;
+			goto out_lock;
+		}
+
+		for (i = 0; i < n; ++i) {
+			supv[i].sup_segnum = segnums[i];
+			supv[i].sup_flags = 0;
+			nilfs_suinfo_update_set_lastmod(&supv[i]);
+			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
+		}
+
+		ret = nilfs_set_suinfo(nilfs, supv, n);
+		free(supv);
+		if (ret >= 0) {
+			/* success, tell caller
+			 * to try another segment/s */
+			ret = -EGCTRYAGAIN;
+			goto out_lock;
+		}
 	}
 
 	ret = nilfs_clean_segments(nilfs,
