@@ -172,6 +172,7 @@ struct nilfs_cleanerd {
 	struct timeval cleaning_interval;
 	struct timeval target;
 	struct timeval timeout;
+	unsigned long min_free_blocks_threshold;
 	__u64 prev_nongc_ctime;
 	mqd_t recvq;
 	char *recvq_name;
@@ -184,6 +185,7 @@ struct nilfs_cleanerd {
 	long mm_ncleansegs;
 	struct timeval mm_protection_period;
 	struct timeval mm_cleaning_interval;
+	unsigned long mm_min_free_blocks_threshold;
 };
 
 /**
@@ -457,6 +459,14 @@ nilfs_cleanerd_protection_period(struct nilfs_cleanerd *cleanerd)
 	return cleanerd->running == 2 ?
 		&cleanerd->mm_protection_period :
 		&cleanerd->config.cf_protection_period;
+}
+
+static unsigned long
+nilfs_cleanerd_min_free_blocks_threshold(struct nilfs_cleanerd *cleanerd)
+{
+	return cleanerd->running == 2 ?
+		cleanerd->mm_min_free_blocks_threshold :
+		cleanerd->min_free_blocks_threshold;
 }
 
 static void
@@ -1001,6 +1011,13 @@ static int nilfs_cleanerd_cmd_run(struct nilfs_cleanerd *cleanerd,
 		cleanerd->mm_cleaning_interval =
 			cleanerd->cleaning_interval;
 	}
+	/* minimal free blocks threshold */
+	if (req2->args.valid & NILFS_CLEANER_ARG_MIN_FREE_BLOCKS_THRESHOLD) {
+		cleanerd->mm_min_free_blocks_threshold =
+			req2->args.min_free_blocks_threshold;
+	} else {
+		cleanerd->mm_min_free_blocks_threshold = 0;
+	}
 	/* number of passes */
 	if (req2->args.valid & NILFS_CLEANER_ARG_NPASSES) {
 		if (!req2->args.npasses)
@@ -1238,10 +1255,14 @@ static int nilfs_cleanerd_handle_clean_check(struct nilfs_cleanerd *cleanerd,
 		/* disk space is close to limit -- accelerate cleaning */
 		cleanerd->ncleansegs = config->cf_mc_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_mc_cleaning_interval;
+		cleanerd->min_free_blocks_threshold =
+				config->cf_mc_min_free_blocks_threshold;
 	} else {
 		/* continue to run */
 		cleanerd->ncleansegs = config->cf_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_cleaning_interval;
+		cleanerd->min_free_blocks_threshold =
+				config->cf_min_free_blocks_threshold;
 	}
 
 	return 0; /* do gc */
@@ -1427,6 +1448,8 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 
 	cleanerd->ncleansegs = cleanerd->config.cf_nsegments_per_clean;
 	cleanerd->cleaning_interval = cleanerd->config.cf_cleaning_interval;
+	cleanerd->min_free_blocks_threshold =
+			cleanerd->config.cf_min_free_blocks_threshold;
 
 
 	if (nilfs_cleanerd_automatic_suspend(cleanerd))
