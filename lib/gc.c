@@ -29,6 +29,10 @@
 #include <syslog.h>
 #endif	/* HAVE_SYSLOG_H */
 
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif	/* HAVE_SYS_TIME */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -607,14 +611,26 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
  * @nsegs: size of the @segnums array
  * @protseq: start of sequence number of protected segments
  * @protcno: start checkpoint number of protected period
+ * @minblocks: minimal number of free blocks in a segment
  */
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
-			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno)
+			      __u64 *segnums, size_t nsegs, __u64 protseq,
+			      nilfs_cno_t protcno, unsigned long minblocks)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, ret = -1;
+	ssize_t n, i, ret = -1;
+	__u32 freeblocks;
+	struct nilfs_suinfo_update *supv;
+	struct nilfs_period *base;
+	struct nilfs_sustat sustat;
+	struct nilfs_cpstat cpstat;
+	struct timeval tv;
+	FILE *fd = NULL;
+	if (gettimeofday(&tv, NULL) < 0) {
+		tv.tv_sec = 0;
+		tv.tv_usec = 0;
+	}
 
 	if (nsegs == 0)
 		return 0;
@@ -677,6 +693,52 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
+	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
+				- (nilfs_vector_get_size(vdescv)
+				+ nilfs_vector_get_size(bdescv));
+
+	if (nilfs_get_sustat(nilfs, &sustat) < 0) {
+		sustat.ss_nsegs = 0;
+		sustat.ss_ncleansegs = 0;
+		sustat.ss_ndirtysegs = 0;
+	}
+
+	if (nilfs_get_cpstat(nilfs, &cpstat) < 0) {
+		cpstat.cs_ncps = 0;
+		cpstat.cs_nsss = 0;
+	}
+
+	/* if there are less free blocks than the
+	 * minimal threshold try to update suinfo
+	 * instead of cleaning */
+	if (freeblocks < minblocks * n) {
+		ret = gettimeofday(&tv, NULL);
+		if (ret < 0)
+			goto out_lock;
+
+		supv = malloc(sizeof(struct nilfs_suinfo_update) * n);
+		if (supv == NULL) {
+			ret = -1;
+			goto out_lock;
+		}
+
+		for (i = 0; i < n; ++i) {
+			supv[i].sup_segnum = segnums[i];
+			supv[i].sup_flags = 0;
+			nilfs_suinfo_update_set_lastmod(&supv[i]);
+			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
+		}
+
+		ret = nilfs_set_suinfo(nilfs, supv, n);
+		free(supv);
+		if (ret >= 0) {
+			/* success, tell caller
+			 * to try another segment */
+			ret = -EGCTRYAGAIN;
+			goto out_lock;
+		}
+	}
+
 	ret = nilfs_clean_segments(nilfs,
 				   nilfs_vector_get_data(vdescv),
 				   nilfs_vector_get_size(vdescv),
@@ -687,11 +749,43 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 				   nilfs_vector_get_data(bdescv),
 				   nilfs_vector_get_size(bdescv),
 				   segnums, n);
+
 	if (ret < 0) {
 		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 				strerror(errno));
 	} else {
 		ret = n;
+	}
+
+	fd = fopen("/home/andreas/nilfs_cleanerd_temp.log", "a");
+	if (fd){
+		int i;
+		//live blocks - dead blocks - live metadatablocks
+		fprintf(fd, "%zu %zu %zu %zd %llu %llu %llu %zd %llu %llu %ld %ld ", nilfs_vector_get_size(vdescv), nilfs_vector_get_size(vblocknrv), nilfs_vector_get_size(bdescv), n, sustat.ss_nsegs,
+				sustat.ss_ncleansegs, sustat.ss_ndirtysegs, ret, cpstat.cs_ncps, cpstat.cs_nsss, tv.tv_sec, tv.tv_usec);
+
+		for (i = 0; i < nilfs_vector_get_size(periodv); i++) {
+			base = nilfs_vector_get_element(periodv, i);
+
+			fprintf(fd, "%llu:%llu" , base->p_start, base->p_end);
+			if (i != nilfs_vector_get_size(periodv) - 1){
+				fprintf(fd, ",");
+			}
+		}
+
+		fprintf(fd, " ");
+
+		for (i = 0; i < n; i++) {
+
+			fprintf(fd, "%llu" , segnums[i]);
+			if (i != n - 1){
+				fprintf(fd, ",");
+			}
+		}
+
+		fprintf(fd, " NA %u\n", freeblocks);
+
+		fclose(fd);
 	}
 
 out_lock:

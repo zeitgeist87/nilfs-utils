@@ -15,8 +15,8 @@
 #include "nilfs.h"
 
 ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
-			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno);
+			      __u64 *segnums, size_t nsegs, __u64 protseq,
+			      nilfs_cno_t protcno, unsigned long minblocks);
 
 
 static inline int nilfs_suinfo_reclaimable(const struct nilfs_suinfo *si)
@@ -26,5 +26,7 @@ static inline int nilfs_suinfo_reclaimable(const struct nilfs_suinfo *si)
 }
 
 extern void (*nilfs_gc_logger)(int priority, const char *fmt, ...);
+
+#define EGCTRYAGAIN 513
 
 #endif /* NILFS_GC_H */

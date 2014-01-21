@@ -167,11 +167,13 @@ struct nilfs_cleanerd {
 	int running;
 	int fallback;
 	int retry_cleaning;
+	int no_timeout;
 	int shutdown;
 	long ncleansegs;
 	struct timeval cleaning_interval;
 	struct timeval target;
 	struct timeval timeout;
+	unsigned long min_free_blocks_threshold;
 	__u64 prev_nongc_ctime;
 	mqd_t recvq;
 	char *recvq_name;
@@ -184,6 +186,7 @@ struct nilfs_cleanerd {
 	long mm_ncleansegs;
 	struct timeval mm_protection_period;
 	struct timeval mm_cleaning_interval;
+	unsigned long mm_min_free_blocks_threshold;
 };
 
 /**
@@ -457,6 +460,14 @@ nilfs_cleanerd_protection_period(struct nilfs_cleanerd *cleanerd)
 	return cleanerd->running == 2 ?
 		&cleanerd->mm_protection_period :
 		&cleanerd->config.cf_protection_period;
+}
+
+static unsigned long
+nilfs_cleanerd_min_free_blocks_threshold(struct nilfs_cleanerd *cleanerd)
+{
+	return cleanerd->running == 2 ?
+		cleanerd->mm_min_free_blocks_threshold :
+		cleanerd->min_free_blocks_threshold;
 }
 
 static void
@@ -873,7 +884,7 @@ static int nilfs_cleanerd_recalc_interval(struct nilfs_cleanerd *cleanerd,
 	interval = nilfs_cleanerd_cleaning_interval(cleanerd);
 	/* timercmp() does not work for '>=' or '<='. */
 	/* curr >= target */
-	if (!timercmp(&curr, &cleanerd->target, <)) {
+	if (!timercmp(&curr, &cleanerd->target, <) || cleanerd->no_timeout) {
 		cleanerd->timeout.tv_sec = 0;
 		cleanerd->timeout.tv_usec = 0;
 		timeradd(&curr, interval, &cleanerd->target);
@@ -997,6 +1008,13 @@ static int nilfs_cleanerd_cmd_run(struct nilfs_cleanerd *cleanerd,
 	} else {
 		cleanerd->mm_cleaning_interval =
 			cleanerd->cleaning_interval;
+	}
+	/* minimal free blocks threshold */
+	if (req2->args.valid & NILFS_CLEANER_ARG_MIN_FREE_BLOCKS_THRESHOLD) {
+		cleanerd->mm_min_free_blocks_threshold =
+			req2->args.min_free_blocks_threshold;
+	} else {
+		cleanerd->mm_min_free_blocks_threshold = 0;
 	}
 	/* number of passes */
 	if (req2->args.valid & NILFS_CLEANER_ARG_NPASSES) {
@@ -1235,10 +1253,14 @@ static int nilfs_cleanerd_handle_clean_check(struct nilfs_cleanerd *cleanerd,
 		/* disk space is close to limit -- accelerate cleaning */
 		cleanerd->ncleansegs = config->cf_mc_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_mc_cleaning_interval;
+		cleanerd->min_free_blocks_threshold =
+				config->cf_mc_min_free_blocks_threshold;
 	} else {
 		/* continue to run */
 		cleanerd->ncleansegs = config->cf_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_cleaning_interval;
+		cleanerd->min_free_blocks_threshold =
+				config->cf_min_free_blocks_threshold;
 	}
 
 	return 0; /* do gc */
@@ -1348,9 +1370,11 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 		       "number: %m");
 		goto out;
 	}
+	cleanerd->no_timeout = 0;
 
-	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums, nsegs,
-				    protseq, protcno);
+	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums,
+			nsegs, protseq, protcno,
+			nilfs_cleanerd_min_free_blocks_threshold(cleanerd));
 	if (ret > 0) {
 		for (i = 0; i < ret; i++)
 			syslog(LOG_DEBUG, "segment %llu cleaned",
@@ -1373,6 +1397,11 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 			cleanerd->retry_cleaning = 0;
 		}
 
+	} else if (ret == -EGCTRYAGAIN) {
+		cleanerd->fallback = 0;
+		cleanerd->retry_cleaning = 1;
+		cleanerd->no_timeout = 1;
+		ret = 0;
 	} else if (ret < 0 && errno == ENOMEM) {
 		nilfs_cleanerd_reduce_ncleansegs_for_retry(cleanerd);
 		cleanerd->fallback = 1;
@@ -1415,6 +1444,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 	cleanerd->running = 1;
 	cleanerd->fallback = 0;
 	cleanerd->retry_cleaning = 0;
+	cleanerd->no_timeout = 0;
 	nilfs_cnoconv_reset(cleanerd->cnoconv);
 	nilfs_gc_logger = syslog;
 
@@ -1424,6 +1454,8 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 
 	cleanerd->ncleansegs = cleanerd->config.cf_nsegments_per_clean;
 	cleanerd->cleaning_interval = cleanerd->config.cf_cleaning_interval;
+	cleanerd->min_free_blocks_threshold =
+			cleanerd->config.cf_min_free_blocks_threshold;
 
 
 	if (nilfs_cleanerd_automatic_suspend(cleanerd))
