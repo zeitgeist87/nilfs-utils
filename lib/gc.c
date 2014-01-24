@@ -612,10 +612,16 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
  * @protseq: start of sequence number of protected segments
  * @protcno: start checkpoint number of protected period
  * @minblocks: minimal number of free blocks in a segment
+ *
+ * Description: Reclaim segments only if the number of free space
+ * gained is bigger than minblocks. To reclaim all segments set minblocks to 0.
+ *
+ * Return Value: On success, the number of reclaimed segments or the special
+ * error value -EGCTRYAGAIN is returned. On error, the return value is < 0
  */
-ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
-			      __u64 *segnums, size_t nsegs, __u64 protseq,
-			      nilfs_cno_t protcno, unsigned long minblocks)
+ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
+				__u64 *segnums, size_t nsegs, __u64 protseq,
+				nilfs_cno_t protcno, unsigned long minblocks)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
@@ -711,30 +717,27 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		}
 
 		ret = nilfs_set_suinfo(nilfs, supv, n);
-		free(supv);
-		if (ret >= 0) {
-			/* success, tell caller
-			 * to try another segment/s */
+		if (ret == 0)
 			ret = -EGCTRYAGAIN;
-			goto out_lock;
-		}
-	}
 
-	ret = nilfs_clean_segments(nilfs,
-				   nilfs_vector_get_data(vdescv),
-				   nilfs_vector_get_size(vdescv),
-				   nilfs_vector_get_data(periodv),
-				   nilfs_vector_get_size(periodv),
-				   nilfs_vector_get_data(vblocknrv),
-				   nilfs_vector_get_size(vblocknrv),
-				   nilfs_vector_get_data(bdescv),
-				   nilfs_vector_get_size(bdescv),
-				   segnums, n);
-	if (ret < 0) {
-		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
-				strerror(errno));
+		free(supv);
 	} else {
-		ret = n;
+		ret = nilfs_clean_segments(nilfs,
+					   nilfs_vector_get_data(vdescv),
+					   nilfs_vector_get_size(vdescv),
+					   nilfs_vector_get_data(periodv),
+					   nilfs_vector_get_size(periodv),
+					   nilfs_vector_get_data(vblocknrv),
+					   nilfs_vector_get_size(vblocknrv),
+					   nilfs_vector_get_data(bdescv),
+					   nilfs_vector_get_size(bdescv),
+					   segnums, n);
+		if (ret < 0) {
+			nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
+					strerror(errno));
+		} else {
+			ret = n;
+		}
 	}
 
 out_lock:
@@ -755,4 +758,20 @@ out_vec:
 		nilfs_vector_destroy(vblocknrv);
 
 	return ret;
+}
+
+/**
+ * nilfs_reclaim_segment - reclaim segments
+ * @nilfs: nilfs object
+ * @segnums: array of segment numbers storing selected segments
+ * @nsegs: size of the @segnums array
+ * @protseq: start of sequence number of protected segments
+ * @protcno: start checkpoint number of protected period
+ */
+ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
+			      __u64 *segnums, size_t nsegs,
+			      __u64 protseq, nilfs_cno_t protcno)
+{
+	return nilfs_reclaim_segment_with_threshold(nilfs, segnums, nsegs,
+			protseq, protcno, 0);
 }

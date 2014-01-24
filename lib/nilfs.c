@@ -568,10 +568,16 @@ ssize_t nilfs_get_suinfo(const struct nilfs *nilfs, __u64 segnum,
 }
 
 /**
- * nilfs_set_suinfo -
- * @nilfs:
+ * nilfs_set_suinfo - sets segment usage info
+ * @nilfs: nilfs object
  * @sup: an array of nilfs_suinfo_update structs
  * @nsup: number of elements in sup
+ *
+ * Description: Takes an array of nilfs_suinfo_update structs and updates
+ * segment usage info accordingly. Only the fields indicated by the sup_flags
+ * are updated.
+ *
+ * Return Value: On success, 0 is returned. On error, -1 is returned.
  */
 ssize_t nilfs_set_suinfo(const struct nilfs *nilfs,
 			 struct nilfs_suinfo_update *sup, size_t nsup)
@@ -590,7 +596,7 @@ ssize_t nilfs_set_suinfo(const struct nilfs *nilfs,
 	argv.v_flags = 0;
 	if (ioctl(nilfs->n_iocfd, NILFS_IOCTL_SET_SUINFO, &argv) < 0)
 		return -1;
-	return argv.v_nmembs;
+	return 0;
 }
 
 /**

@@ -278,6 +278,54 @@ nilfs_cldconfig_handle_protection_period(struct nilfs_cldconfig *config,
 }
 
 static unsigned long long
+nilfs_convert_units_to_bytes(struct nilfs_param *param) {
+	unsigned long long bytes = param->num;
+
+	switch (param->unit) {
+	case NILFS_SIZE_UNIT_KB:
+		bytes *= 1000ULL;
+		break;
+	case NILFS_SIZE_UNIT_KIB:
+		bytes <<= 10;
+		break;
+	case NILFS_SIZE_UNIT_MB:
+		bytes *= 1000000ULL;
+		break;
+	case NILFS_SIZE_UNIT_MIB:
+		bytes <<= 20;
+		break;
+	case NILFS_SIZE_UNIT_GB:
+		bytes *= 1000000000ULL;
+		break;
+	case NILFS_SIZE_UNIT_GIB:
+		bytes <<= 30;
+		break;
+	case NILFS_SIZE_UNIT_TB:
+		bytes *= 1000000000000ULL;
+		break;
+	case NILFS_SIZE_UNIT_TIB:
+		bytes <<= 40;
+		break;
+	case NILFS_SIZE_UNIT_PB:
+		bytes *= 1000000000000000ULL;
+		break;
+	case NILFS_SIZE_UNIT_PIB:
+		bytes <<= 50;
+		break;
+	case NILFS_SIZE_UNIT_EB:
+		bytes *= 1000000000000000000ULL;
+		break;
+	case NILFS_SIZE_UNIT_EIB:
+		bytes <<= 60;
+		break;
+	default:
+		assert(0);
+	}
+
+	return bytes;
+}
+
+static unsigned long long
 nilfs_convert_size_to_nsegments(struct nilfs *nilfs, struct nilfs_param *param)
 {
 	unsigned long long ret, segment_size, bytes;
@@ -287,48 +335,7 @@ nilfs_convert_size_to_nsegments(struct nilfs *nilfs, struct nilfs_param *param)
 	} else if (param->unit == NILFS_SIZE_UNIT_PERCENT) {
 		ret = (nilfs_get_nsegments(nilfs) * param->num + 99) / 100;
 	} else {
-		bytes = param->num;
-
-		switch (param->unit) {
-		case NILFS_SIZE_UNIT_KB:
-			bytes *= 1000ULL;
-			break;
-		case NILFS_SIZE_UNIT_KIB:
-			bytes <<= 10;
-			break;
-		case NILFS_SIZE_UNIT_MB:
-			bytes *= 1000000ULL;
-			break;
-		case NILFS_SIZE_UNIT_MIB:
-			bytes <<= 20;
-			break;
-		case NILFS_SIZE_UNIT_GB:
-			bytes *= 1000000000ULL;
-			break;
-		case NILFS_SIZE_UNIT_GIB:
-			bytes <<= 30;
-			break;
-		case NILFS_SIZE_UNIT_TB:
-			bytes *= 1000000000000ULL;
-			break;
-		case NILFS_SIZE_UNIT_TIB:
-			bytes <<= 40;
-			break;
-		case NILFS_SIZE_UNIT_PB:
-			bytes *= 1000000000000000ULL;
-			break;
-		case NILFS_SIZE_UNIT_PIB:
-			bytes <<= 50;
-			break;
-		case NILFS_SIZE_UNIT_EB:
-			bytes *= 1000000000000000000ULL;
-			break;
-		case NILFS_SIZE_UNIT_EIB:
-			bytes <<= 60;
-			break;
-		default:
-			assert(0);
-		}
+		bytes = nilfs_convert_units_to_bytes(param);
 		segment_size = nilfs_get_block_size(nilfs) *
 			nilfs_get_blocks_per_segment(nilfs);
 		ret = (bytes + segment_size - 1) / segment_size;
@@ -455,17 +462,36 @@ nilfs_cldconfig_handle_mc_nsegments_per_clean(struct nilfs_cldconfig *config,
 	return 0;
 }
 
+static unsigned long long
+nilfs_convert_size_to_blocks_per_segment(struct nilfs *nilfs,
+					 struct nilfs_param *param)
+{
+	unsigned long long ret, segment_size, block_size, bytes;
+
+	if (param->unit == NILFS_SIZE_UNIT_NONE) {
+		ret = param->num;
+	} else if (param->unit == NILFS_SIZE_UNIT_PERCENT) {
+		ret = (nilfs_get_blocks_per_segment(nilfs) * param->num) / 100;
+	} else {
+		block_size = nilfs_get_block_size(nilfs);
+		segment_size = block_size *
+				nilfs_get_blocks_per_segment(nilfs);
+		bytes = nilfs_convert_units_to_bytes(param) % segment_size;
+		ret = (bytes + block_size - 1) / block_size;
+	}
+	return ret;
+}
+
 static int
 nilfs_cldconfig_handle_min_free_blocks(struct nilfs_cldconfig *config,
 				       char **tokens, size_t ntoks,
 				       struct nilfs *nilfs)
 {
-	unsigned long n;
+	struct nilfs_param param;
 
-	if (nilfs_cldconfig_get_ulong_argument(tokens, ntoks, &n) < 0)
-		return 0;
-
-	config->cf_min_free_blocks_threshold = n;
+	if (nilfs_cldconfig_get_size_argument(tokens, ntoks, &param) == 0)
+		config->cf_min_free_blocks_threshold =
+			nilfs_convert_size_to_blocks_per_segment(nilfs, &param);
 	return 0;
 }
 
@@ -474,12 +500,11 @@ nilfs_cldconfig_handle_mc_min_free_blocks(struct nilfs_cldconfig *config,
 					  char **tokens, size_t ntoks,
 					  struct nilfs *nilfs)
 {
-	unsigned long n;
+	struct nilfs_param param;
 
-	if (nilfs_cldconfig_get_ulong_argument(tokens, ntoks, &n) < 0)
-		return 0;
-
-	config->cf_mc_min_free_blocks_threshold = n;
+	if (nilfs_cldconfig_get_size_argument(tokens, ntoks, &param) == 0)
+		config->cf_mc_min_free_blocks_threshold =
+			nilfs_convert_size_to_blocks_per_segment(nilfs, &param);
 	return 0;
 }
 

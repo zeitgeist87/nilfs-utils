@@ -1375,7 +1375,7 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 	}
 	cleanerd->no_timeout = 0;
 
-	ret = nilfs_reclaim_segment(cleanerd->nilfs, segnums,
+	ret = nilfs_reclaim_segment_with_threshold(cleanerd->nilfs, segnums,
 			nsegs, protseq, protcno,
 			nilfs_cleanerd_min_free_blocks_threshold(cleanerd));
 	if (ret > 0) {
@@ -1401,6 +1401,18 @@ static ssize_t nilfs_cleanerd_clean_segments(struct nilfs_cleanerd *cleanerd,
 		}
 
 	} else if (ret == -EGCTRYAGAIN) {
+		cleanerd->fallback = 0;
+		cleanerd->retry_cleaning = 1;
+		cleanerd->no_timeout = 1;
+		ret = 0;
+	} else if (ret < 0 && errno == ENOTTY) {
+		/* kernel doesn't support set_suinfo ioctl
+		 * disable min_free_blocks_threshold */
+		cleanerd->min_free_blocks_threshold = 0;
+		cleanerd->mm_min_free_blocks_threshold = 0;
+		cleanerd->config.cf_min_free_blocks_threshold = 0;
+		cleanerd->config.cf_mc_min_free_blocks_threshold = 0;
+
 		cleanerd->fallback = 0;
 		cleanerd->retry_cleaning = 1;
 		cleanerd->no_timeout = 1;

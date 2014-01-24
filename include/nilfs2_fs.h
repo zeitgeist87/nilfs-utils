@@ -722,6 +722,7 @@ static inline int nilfs_suinfo_clean(const struct nilfs_suinfo *si)
 struct nilfs_suinfo_update {
 	__u64 sup_segnum;
 	__u32 sup_flags;
+	__u32 sup_reserved;
 	struct nilfs_suinfo sup_sui;
 };
 
