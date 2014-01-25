@@ -1493,6 +1493,10 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 			return -1;
 		}
 
+		/* starts garbage collection */
+		syslog(LOG_DEBUG, "ncleansegs = %llu",
+		       (unsigned long long)sustat.ss_ncleansegs);
+
 		if (nilfs_cleanerd_check_state(cleanerd, &sustat))
 			goto sleep;
 
