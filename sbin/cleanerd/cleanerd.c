@@ -172,7 +172,7 @@ struct nilfs_cleanerd {
 	struct timeval cleaning_interval;
 	struct timeval target;
 	struct timeval timeout;
-	unsigned long min_free_blocks_threshold;
+	unsigned long min_reclaimable_blocks;
 	__u64 prev_nongc_ctime;
 	mqd_t recvq;
 	char *recvq_name;
@@ -281,6 +281,8 @@ static int nilfs_cleanerd_reconfig(struct nilfs_cleanerd *cleanerd,
 	} else {
 		cleanerd->ncleansegs = config->cf_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_cleaning_interval;
+		cleanerd->min_reclaimable_blocks =
+				config->cf_min_reclaimable_blocks;
 		syslog(LOG_INFO, "configuration file reloaded");
 	}
 	return ret;
@@ -472,7 +474,7 @@ nilfs_cleanerd_min_reclaimable_blocks(struct nilfs_cleanerd *cleanerd)
 {
 	return cleanerd->running == 2 ?
 		cleanerd->mm_min_reclaimable_blocks :
-		cleanerd->min_free_blocks_threshold;
+		cleanerd->min_reclaimable_blocks;
 }
 
 static void
@@ -1261,13 +1263,13 @@ static int nilfs_cleanerd_handle_clean_check(struct nilfs_cleanerd *cleanerd,
 		/* disk space is close to limit -- accelerate cleaning */
 		cleanerd->ncleansegs = config->cf_mc_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_mc_cleaning_interval;
-		cleanerd->min_free_blocks_threshold =
+		cleanerd->min_reclaimable_blocks =
 				config->cf_mc_min_reclaimable_blocks;
 	} else {
 		/* continue to run */
 		cleanerd->ncleansegs = config->cf_nsegments_per_clean;
 		cleanerd->cleaning_interval = config->cf_cleaning_interval;
-		cleanerd->min_free_blocks_threshold =
+		cleanerd->min_reclaimable_blocks =
 				config->cf_min_reclaimable_blocks;
 	}
 
@@ -1455,7 +1457,7 @@ static int nilfs_cleanerd_clean_loop(struct nilfs_cleanerd *cleanerd)
 
 	cleanerd->ncleansegs = cleanerd->config.cf_nsegments_per_clean;
 	cleanerd->cleaning_interval = cleanerd->config.cf_cleaning_interval;
-	cleanerd->min_free_blocks_threshold =
+	cleanerd->min_reclaimable_blocks =
 			cleanerd->config.cf_min_reclaimable_blocks;
 
 
