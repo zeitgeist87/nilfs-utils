@@ -46,7 +46,7 @@ struct nilfs_cleaner_args {
 	uint64_t start_segnum;	/* start segment number */
 	uint64_t nsegs;		/* number of segments */
 	uint32_t runtime; /* runtime in seconds */
-	uint32_t min_free_blocks_threshold;
+	uint32_t min_reclaimable_blocks;
 };
 /* valid flags */
 #define NILFS_CLEANER_ARG_PROTECTION_PERIOD		(1 << 0)
@@ -57,7 +57,7 @@ struct nilfs_cleaner_args {
 #define NILFS_CLEANER_ARG_NSEGS				(1 << 5) /* reserved */
 #define NILFS_CLEANER_ARG_NPASSES			(1 << 6) /* reserved */
 #define NILFS_CLEANER_ARG_RUNTIME			(1 << 7) /* reserved */
-#define NILFS_CLEANER_ARG_MIN_FREE_BLOCKS_THRESHOLD	(1 << 8)
+#define NILFS_CLEANER_ARG_MIN_RECLAIMABLE_BLOCKS	(1 << 8)
 
 enum {
 	NILFS_CLEANER_STATUS_IDLE,

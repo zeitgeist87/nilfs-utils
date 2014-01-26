@@ -77,7 +77,7 @@ const static struct option long_option[] = {
 	{"stop", no_argument, NULL, 'b'},
 	{"suspend", no_argument, NULL, 's'},
 	{"speed", required_argument, NULL, 'S'},
-	{"free-blocks-threshold", optional_argument, NULL, 't'},
+	{"min-reclaimable-blocks", optional_argument, NULL, 'm'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"version", no_argument, NULL, 'V'},
 	{NULL, 0, NULL, 0}
@@ -91,20 +91,21 @@ const static struct option long_option[] = {
 	"  -l, --status\t\tdisplay cleaner status\n"			\
 	"  -p, --protection-period=SECONDS\n"				\
 	"               \t\tspecify protection period\n"		\
+	"  -m, --min-reclaimable-blocks=COUNT\n"			\
+	"               \t\tset minimum number of reclaimable blocks\n"	\
+	"               \t\tbefore a segment can be cleaned\n"		\
 	"  -q, --quit\t\tshutdown cleaner\n"				\
 	"  -r, --resume\t\tresume cleaner\n"				\
 	"  -s, --suspend\t\tsuspend cleaner\n"				\
 	"  -S, --speed=COUNT[/SECONDS]\n"				\
 	"               \t\tset GC speed\n"				\
-	"  -t, --free-blocks-threshold=COUNT\n"				\
-	"               \t\tset minimal number of free blocks before\n"	\
-	"               \t\ta segment can be cleaned\n"			\
 	"  -v, --verbose\t\tverbose mode\n"				\
 	"  -V, --version\t\tdisplay version and exit\n"
 #else
-#define NILFS_CLEAN_USAGE						\
-	"Usage: %s [-b] [-c [conffile]] [-h] [-l] [-p protection-period]" \
-	"          [-q] [-r] [-s] [-S gc-speed] [-t blocks][-v] [-V] [device]\n"
+#define NILFS_CLEAN_USAGE						  \
+	"Usage: %s [-b] [-c [conffile]] [-h] [-l] [-m blocks]\n"	  \
+	"          [-p protection-period] [-q] [-r] [-s] [-S gc-speed]\n" \
+	"          [-v] [-V] [device]\n"
 #endif	/* _GNU_SOURCE */
 
 
@@ -128,7 +129,7 @@ static const char *conffile = NULL;
 static unsigned long protection_period = ULONG_MAX;
 static int nsegments_per_clean = 2;
 static struct timespec cleaning_interval = { 0, 100000000 };   /* 100 msec */
-static unsigned long min_free_blocks_threshold;
+static unsigned long min_reclaimable_blocks;
 
 static sigjmp_buf nilfs_clean_env;
 static struct nilfs_cleaner *nilfs_cleaner;
@@ -169,11 +170,11 @@ static int nilfs_clean_do_run(struct nilfs_cleaner *cleaner)
 	args.nsegments_per_clean = nsegments_per_clean;
 	args.cleaning_interval = cleaning_interval.tv_sec;
 	args.cleaning_interval_nsec = cleaning_interval.tv_nsec;
-	args.min_free_blocks_threshold = min_free_blocks_threshold;
+	args.min_reclaimable_blocks = min_reclaimable_blocks;
 	args.valid = (NILFS_CLEANER_ARG_NPASSES |
 		      NILFS_CLEANER_ARG_CLEANING_INTERVAL |
 		      NILFS_CLEANER_ARG_NSEGMENTS_PER_CLEAN |
-		      NILFS_CLEANER_ARG_MIN_FREE_BLOCKS_THRESHOLD);
+		      NILFS_CLEANER_ARG_MIN_RECLAIMABLE_BLOCKS);
 
 	if (protection_period != ULONG_MAX) {
 		args.protection_period = protection_period;
@@ -441,10 +442,10 @@ static void nilfs_clean_parse_options(int argc, char *argv[])
 	int c;
 
 #ifdef _GNU_SOURCE
-	while ((c = getopt_long(argc, argv, "bc::hlp:qrsS:t:vV",
+	while ((c = getopt_long(argc, argv, "bc::hlm:p:qrsS:vV",
 				long_option, &option_index)) >= 0) {
 #else
-	while ((c = getopt(argc, argv, "bc::hlp:qrsS:t:vV")) >= 0) {
+	while ((c = getopt(argc, argv, "bc::hlm:p:qrsS:vV")) >= 0) {
 #endif	/* _GNU_SOURCE */
 		switch (c) {
 		case 'b':
@@ -462,6 +463,9 @@ static void nilfs_clean_parse_options(int argc, char *argv[])
 		case 'l':
 			clean_cmd = NILFS_CLEAN_CMD_INFO;
 			break;
+		case 'm':
+			min_reclaimable_blocks = strtoul(optarg, NULL, 10);
+			break;
 		case 'p':
 			if (nilfs_clean_parse_protection_period(optarg) < 0)
 				exit(EXIT_FAILURE);
@@ -478,9 +482,6 @@ static void nilfs_clean_parse_options(int argc, char *argv[])
 		case 'S':
 			if (nilfs_clean_parse_gcspeed(optarg) < 0)
 				exit(EXIT_FAILURE);
-			break;
-		case 't':
-			min_free_blocks_threshold = strtoul(optarg, NULL, 10);
 			break;
 		case 'v':
 			verbose = 1;
