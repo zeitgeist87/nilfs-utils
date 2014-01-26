@@ -39,7 +39,6 @@
 #include <signal.h>
 #include "vector.h"
 #include "nilfs_gc.h"
-#include "nilfs.h"
 
 #define NILFS_GC_NBDESCS	512
 #define NILFS_GC_NVINFO	512
@@ -627,7 +626,7 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
 	ssize_t n, i, ret = -1;
-	__u32 freeblocks;
+	__u32 reclaimable_blocks;
 	struct nilfs_suinfo_update *supv;
 	struct timeval tv;
 
@@ -692,14 +691,15 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
-	freeblocks = (nilfs_get_blocks_per_segment(nilfs) * n)
+	reclaimable_blocks = (nilfs_get_blocks_per_segment(nilfs) * n)
 				- (nilfs_vector_get_size(vdescv)
 				+ nilfs_vector_get_size(bdescv));
 
-	/* if there are less free blocks than the
+	/* if there are less reclaimable blocks than the
 	 * minimal threshold try to update suinfo
 	 * instead of cleaning */
-	if (nilfs_opt_test_set_suinfo(nilfs) && freeblocks < minblocks * n) {
+	if (nilfs_opt_test_set_suinfo(nilfs)
+			&& reclaimable_blocks < minblocks * n) {
 		ret = gettimeofday(&tv, NULL);
 		if (ret < 0)
 			goto out_lock;
@@ -718,10 +718,16 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 		}
 
 		ret = nilfs_set_suinfo(nilfs, supv, n);
-		if (ret < 0 && errno == ENOTTY) {
+		if (ret == 0) {
+			ret = n;
+		} else if (ret < 0 && errno == ENOTTY) {
 			nilfs_gc_logger(LOG_WARNING,
 					"set_suinfo ioctl is not supported");
 			nilfs_opt_clear_set_suinfo(nilfs);
+			ret = 0;
+		} else {
+			nilfs_gc_logger(LOG_ERR, "cannot set suinfo: %s",
+					strerror(errno));
 		}
 
 		free(supv);
