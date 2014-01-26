@@ -29,6 +29,10 @@
 #include <syslog.h>
 #endif	/* HAVE_SYSLOG_H */
 
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif	/* HAVE_SYS_TIME */
+
 #include <errno.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -601,20 +605,32 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
 }
 
 /**
- * nilfs_reclaim_segment - reclaim segments
+ * nilfs_reclaim_segment_with_threshold - reclaim segments with a threshold
  * @nilfs: nilfs object
  * @segnums: array of segment numbers storing selected segments
  * @nsegs: size of the @segnums array
  * @protseq: start of sequence number of protected segments
  * @protcno: start checkpoint number of protected period
+ * @min_reclaimable: minimal number of reclaimable blocks in a segment
+ *
+ * Description: Reclaim segments only if the number of reclaimable blocks
+ * is bigger than min_reclaimable. To reclaim all segments set
+ * min_reclaimable to 0.
+ *
+ * Return Value: On success, the number of reclaimed segments is returned.
+ * On error, the return value is < 0
  */
-ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
-			      __u64 *segnums, size_t nsegs,
-			      __u64 protseq, nilfs_cno_t protcno)
+ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
+				__u64 *segnums, size_t nsegs, __u64 protseq,
+				nilfs_cno_t protcno,
+				unsigned long min_reclaimable)
 {
 	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
-	ssize_t n, ret = -1;
+	ssize_t n, i, ret = -1;
+	__u32 reclaimable_blocks;
+	struct nilfs_suinfo_update *supv;
+	struct timeval tv;
 
 	if (nsegs == 0)
 		return 0;
@@ -677,21 +693,63 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 		goto out_lock;
 	}
 
-	ret = nilfs_clean_segments(nilfs,
-				   nilfs_vector_get_data(vdescv),
-				   nilfs_vector_get_size(vdescv),
-				   nilfs_vector_get_data(periodv),
-				   nilfs_vector_get_size(periodv),
-				   nilfs_vector_get_data(vblocknrv),
-				   nilfs_vector_get_size(vblocknrv),
-				   nilfs_vector_get_data(bdescv),
-				   nilfs_vector_get_size(bdescv),
-				   segnums, n);
-	if (ret < 0) {
-		nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
-				strerror(errno));
+	reclaimable_blocks = (nilfs_get_blocks_per_segment(nilfs) * n)
+				- (nilfs_vector_get_size(vdescv)
+				+ nilfs_vector_get_size(bdescv));
+
+	/* if there are less reclaimable blocks than the
+	 * minimal threshold try to update suinfo
+	 * instead of cleaning */
+	if (nilfs_opt_test_set_suinfo(nilfs)
+			&& reclaimable_blocks < min_reclaimable * n) {
+		ret = gettimeofday(&tv, NULL);
+		if (ret < 0)
+			goto out_lock;
+
+		supv = malloc(sizeof(struct nilfs_suinfo_update) * n);
+		if (supv == NULL) {
+			ret = -1;
+			goto out_lock;
+		}
+
+		for (i = 0; i < n; ++i) {
+			supv[i].sup_segnum = segnums[i];
+			supv[i].sup_flags = 0;
+			nilfs_suinfo_update_set_lastmod(&supv[i]);
+			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
+		}
+
+		ret = nilfs_set_suinfo(nilfs, supv, n);
+		if (ret == 0) {
+			ret = n;
+		} else if (ret < 0 && errno == ENOTTY) {
+			nilfs_gc_logger(LOG_WARNING,
+					"set_suinfo ioctl is not supported");
+			nilfs_opt_clear_set_suinfo(nilfs);
+			ret = 0;
+		} else {
+			nilfs_gc_logger(LOG_ERR, "cannot set suinfo: %s",
+					strerror(errno));
+		}
+
+		free(supv);
 	} else {
-		ret = n;
+		ret = nilfs_clean_segments(nilfs,
+					   nilfs_vector_get_data(vdescv),
+					   nilfs_vector_get_size(vdescv),
+					   nilfs_vector_get_data(periodv),
+					   nilfs_vector_get_size(periodv),
+					   nilfs_vector_get_data(vblocknrv),
+					   nilfs_vector_get_size(vblocknrv),
+					   nilfs_vector_get_data(bdescv),
+					   nilfs_vector_get_size(bdescv),
+					   segnums, n);
+		if (ret < 0) {
+			nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
+					strerror(errno));
+		} else {
+			ret = n;
+		}
 	}
 
 out_lock:
@@ -712,4 +770,20 @@ out_vec:
 		nilfs_vector_destroy(vblocknrv);
 
 	return ret;
+}
+
+/**
+ * nilfs_reclaim_segment - reclaim segments
+ * @nilfs: nilfs object
+ * @segnums: array of segment numbers storing selected segments
+ * @nsegs: size of the @segnums array
+ * @protseq: start of sequence number of protected segments
+ * @protcno: start checkpoint number of protected period
+ */
+ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
+			      __u64 *segnums, size_t nsegs,
+			      __u64 protseq, nilfs_cno_t protcno)
+{
+	return nilfs_reclaim_segment_with_threshold(nilfs, segnums, nsegs,
+			protseq, protcno, 0);
 }

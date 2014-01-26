@@ -18,6 +18,10 @@ ssize_t nilfs_reclaim_segment(struct nilfs *nilfs,
 			      __u64 *segnums, size_t nsegs,
 			      __u64 protseq, nilfs_cno_t protcno);
 
+ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
+				__u64 *segnums, size_t nsegs, __u64 protseq,
+				nilfs_cno_t protcno,
+				unsigned long min_reclaimable);
 
 static inline int nilfs_suinfo_reclaimable(const struct nilfs_suinfo *si)
 {
