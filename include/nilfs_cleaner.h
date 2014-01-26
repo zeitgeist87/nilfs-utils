@@ -46,17 +46,18 @@ struct nilfs_cleaner_args {
 	uint64_t start_segnum;	/* start segment number */
 	uint64_t nsegs;		/* number of segments */
 	uint32_t runtime; /* runtime in seconds */
-	uint32_t pad2;
+	uint32_t min_reclaimable_blocks;
 };
 /* valid flags */
-#define NILFS_CLEANER_ARG_PROTECTION_PERIOD	(1 << 0)
-#define NILFS_CLEANER_ARG_NSEGMENTS_PER_CLEAN	(1 << 1)
-#define NILFS_CLEANER_ARG_CLEANING_INTERVAL	(1 << 2)
-#define NILFS_CLEANER_ARG_USAGE_RATE_THRESHOLD	(1 << 3) /* reserved */
-#define NILFS_CLEANER_ARG_START_SEGNUM		(1 << 4) /* reserved */
-#define NILFS_CLEANER_ARG_NSEGS			(1 << 5) /* reserved */
-#define NILFS_CLEANER_ARG_NPASSES		(1 << 6) /* reserved */
-#define NILFS_CLEANER_ARG_RUNTIME		(1 << 7) /* reserved */
+#define NILFS_CLEANER_ARG_PROTECTION_PERIOD		(1 << 0)
+#define NILFS_CLEANER_ARG_NSEGMENTS_PER_CLEAN		(1 << 1)
+#define NILFS_CLEANER_ARG_CLEANING_INTERVAL		(1 << 2)
+#define NILFS_CLEANER_ARG_USAGE_RATE_THRESHOLD		(1 << 3) /* reserved */
+#define NILFS_CLEANER_ARG_START_SEGNUM			(1 << 4) /* reserved */
+#define NILFS_CLEANER_ARG_NSEGS				(1 << 5) /* reserved */
+#define NILFS_CLEANER_ARG_NPASSES			(1 << 6) /* reserved */
+#define NILFS_CLEANER_ARG_RUNTIME			(1 << 7) /* reserved */
+#define NILFS_CLEANER_ARG_MIN_RECLAIMABLE_BLOCKS	(1 << 8)
 
 enum {
 	NILFS_CLEANER_STATUS_IDLE,
