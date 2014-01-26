@@ -1019,12 +1019,15 @@ static int nilfs_cleanerd_cmd_run(struct nilfs_cleanerd *cleanerd,
 		cleanerd->mm_cleaning_interval =
 			cleanerd->cleaning_interval;
 	}
-	/* minimal free blocks threshold */
-	if (req2->args.valid & NILFS_CLEANER_ARG_MIN_RECLAIMABLE_BLOCKS) {
+	/* minimal reclaimable blocks */
+	if ((req2->args.valid & NILFS_CLEANER_ARG_MIN_RECLAIMABLE_BLOCKS)
+		&& req2->args.min_reclaimable_blocks <=
+			nilfs_get_blocks_per_segment(cleanerd->nilfs)) {
 		cleanerd->mm_min_reclaimable_blocks =
 			req2->args.min_reclaimable_blocks;
 	} else {
-		cleanerd->mm_min_reclaimable_blocks = 0;
+		cleanerd->mm_min_reclaimable_blocks =
+			cleanerd->min_reclaimable_blocks;
 	}
 	/* number of passes */
 	if (req2->args.valid & NILFS_CLEANER_ARG_NPASSES) {
