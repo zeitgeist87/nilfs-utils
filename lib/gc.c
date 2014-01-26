@@ -717,6 +717,9 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 			supv[i].sup_sui.sui_lastmod = tv.tv_sec;
 		}
 
+		nilfs_gc_logger(LOG_ERR, "call nilfs_set_suinfo: %lu %lu %lu",
+				reclaimable_blocks, minblocks * n, minblocks);
+
 		ret = nilfs_set_suinfo(nilfs, supv, n);
 		if (ret == 0) {
 			ret = n;
