@@ -483,27 +483,27 @@ nilfs_convert_size_to_blocks_per_segment(struct nilfs *nilfs,
 }
 
 static int
-nilfs_cldconfig_handle_min_free_blocks(struct nilfs_cldconfig *config,
-				       char **tokens, size_t ntoks,
-				       struct nilfs *nilfs)
+nilfs_cldconfig_handle_min_reclaimable_blocks(struct nilfs_cldconfig *config,
+					      char **tokens, size_t ntoks,
+					      struct nilfs *nilfs)
 {
 	struct nilfs_param param;
 
 	if (nilfs_cldconfig_get_size_argument(tokens, ntoks, &param) == 0)
-		config->cf_min_free_blocks_threshold =
+		config->cf_min_reclaimable_blocks =
 			nilfs_convert_size_to_blocks_per_segment(nilfs, &param);
 	return 0;
 }
 
 static int
-nilfs_cldconfig_handle_mc_min_free_blocks(struct nilfs_cldconfig *config,
-					  char **tokens, size_t ntoks,
-					  struct nilfs *nilfs)
+nilfs_cldconfig_handle_mc_min_reclaimable_blocks(struct nilfs_cldconfig *config,
+						 char **tokens, size_t ntoks,
+						 struct nilfs *nilfs)
 {
 	struct nilfs_param param;
 
 	if (nilfs_cldconfig_get_size_argument(tokens, ntoks, &param) == 0)
-		config->cf_mc_min_free_blocks_threshold =
+		config->cf_mc_min_reclaimable_blocks =
 			nilfs_convert_size_to_blocks_per_segment(nilfs, &param);
 	return 0;
 }
@@ -540,6 +540,14 @@ static int nilfs_cldconfig_handle_use_mmap(struct nilfs_cldconfig *config,
 					   struct nilfs *nilfs)
 {
 	config->cf_use_mmap = 1;
+	return 0;
+}
+
+static int nilfs_cldconfig_handle_use_set_suinfo(struct nilfs_cldconfig *config,
+						 char **tokens, size_t ntoks,
+						 struct nilfs *nilfs)
+{
+	config->cf_use_set_suinfo = 1;
 	return 0;
 }
 
@@ -630,12 +638,16 @@ nilfs_cldconfig_keyword_table[] = {
 		nilfs_cldconfig_handle_log_priority
 	},
 	{
-		"min_free_blocks_threshold", 2, 2,
-		nilfs_cldconfig_handle_min_free_blocks
+		"min_reclaimable_blocks", 2, 2,
+		nilfs_cldconfig_handle_min_reclaimable_blocks
 	},
 	{
-		"mc_min_free_blocks_threshold", 2, 2,
-		nilfs_cldconfig_handle_mc_min_free_blocks
+		"mc_min_reclaimable_blocks", 2, 2,
+		nilfs_cldconfig_handle_mc_min_reclaimable_blocks
+	},
+	{
+		"use_set_suinfo", 1, 1,
+		nilfs_cldconfig_handle_use_set_suinfo
 	},
 };
 
@@ -701,11 +713,12 @@ static void nilfs_cldconfig_set_default(struct nilfs_cldconfig *config,
 	config->cf_retry_interval.tv_sec = NILFS_CLDCONFIG_RETRY_INTERVAL;
 	config->cf_retry_interval.tv_usec = 0;
 	config->cf_use_mmap = NILFS_CLDCONFIG_USE_MMAP;
+	config->cf_use_set_suinfo = NILFS_CLDCONFIG_USE_SET_SUINFO;
 	config->cf_log_priority = NILFS_CLDCONFIG_LOG_PRIORITY;
-	config->cf_min_free_blocks_threshold =
-		NILFS_CLDCONFIG_MIN_FREE_BLOCKS_THRESHOLD;
-	config->cf_mc_min_free_blocks_threshold =
-		NILFS_CLDCONFIG_MC_MIN_FREE_BLOCKS_THRESHOLD;
+	config->cf_min_reclaimable_blocks =
+		NILFS_CLDCONFIG_MIN_RECLAIMABLE_BLOCKS;
+	config->cf_mc_min_reclaimable_blocks =
+		NILFS_CLDCONFIG_MC_MIN_RECLAIMABLE_BLOCKS;
 }
 
 static inline int iseol(int c)

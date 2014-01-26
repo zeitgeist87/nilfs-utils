@@ -695,16 +695,10 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 				- (nilfs_vector_get_size(vdescv)
 				+ nilfs_vector_get_size(bdescv));
 
-	nilfs_gc_logger(LOG_ERR, "nilfs_reclaim_segment_with_threshold: %lu %lu",
-			freeblocks, minblocks);
-
 	/* if there are less free blocks than the
 	 * minimal threshold try to update suinfo
 	 * instead of cleaning */
-	if (freeblocks < minblocks * n) {
-		nilfs_gc_logger(LOG_ERR, "optimization: %lu %lu",
-				freeblocks, minblocks);
-
+	if (nilfs_opt_test_set_suinfo(nilfs) && freeblocks < minblocks * n) {
 		ret = gettimeofday(&tv, NULL);
 		if (ret < 0)
 			goto out_lock;
@@ -725,9 +719,11 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 		ret = nilfs_set_suinfo(nilfs, supv, n);
 		if (ret == 0)
 			ret = -EGCTRYAGAIN;
-
-		nilfs_gc_logger(LOG_ERR, "set_suinfo: %ld",
-				ret);
+		else if (errno == ENOTTY) {
+			nilfs_gc_logger(LOG_WARNING,
+					"set_suinfo ioctl is not supported");
+			nilfs_opt_clear_set_suinfo(nilfs);
+		}
 
 		free(supv);
 	} else {
@@ -741,8 +737,6 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 					   nilfs_vector_get_data(bdescv),
 					   nilfs_vector_get_size(bdescv),
 					   segnums, n);
-		nilfs_gc_logger(LOG_ERR, "normal clean: %ld",
-				ret);
 		if (ret < 0) {
 			nilfs_gc_logger(LOG_ERR, "cannot clean segments: %s",
 					strerror(errno));

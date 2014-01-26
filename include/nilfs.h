@@ -128,7 +128,8 @@ struct nilfs {
 #define NILFS_OPEN_RDWR		0x0008	/* Open NILFS API in read/write mode */
 #define NILFS_OPEN_GCLK		0x1000	/* Open GC lock primitive */
 
-#define NILFS_OPT_MMAP	0x01
+#define NILFS_OPT_MMAP		0x01
+#define NILFS_OPT_SET_SUINFO	0x02
 
 
 struct nilfs *nilfs_open(const char *, const char *, int);
