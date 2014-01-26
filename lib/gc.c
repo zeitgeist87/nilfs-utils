@@ -39,6 +39,7 @@
 #include <signal.h>
 #include "vector.h"
 #include "nilfs_gc.h"
+#include "nilfs.h"
 
 #define NILFS_GC_NBDESCS	512
 #define NILFS_GC_NVINFO	512
@@ -717,9 +718,7 @@ ssize_t nilfs_reclaim_segment_with_threshold(struct nilfs *nilfs,
 		}
 
 		ret = nilfs_set_suinfo(nilfs, supv, n);
-		if (ret == 0)
-			ret = -EGCTRYAGAIN;
-		else if (errno == ENOTTY) {
+		if (ret < 0 && errno == ENOTTY) {
 			nilfs_gc_logger(LOG_WARNING,
 					"set_suinfo ioctl is not supported");
 			nilfs_opt_clear_set_suinfo(nilfs);

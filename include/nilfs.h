@@ -141,6 +141,10 @@ void nilfs_opt_clear_mmap(struct nilfs *);
 int nilfs_opt_set_mmap(struct nilfs *);
 int nilfs_opt_test_mmap(struct nilfs *);
 
+void nilfs_opt_clear_set_suinfo(struct nilfs *);
+int nilfs_opt_set_set_suinfo(struct nilfs *);
+int nilfs_opt_test_set_suinfo(struct nilfs *);
+
 nilfs_cno_t nilfs_get_oldest_cno(struct nilfs *);
 
 struct nilfs_super_block *nilfs_get_sb(struct nilfs *);
