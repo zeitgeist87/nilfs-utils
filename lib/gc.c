@@ -148,17 +148,18 @@ static int nilfs_acc_blocks_file(struct nilfs_file *file,
 			vdesc->vd_ino = ino;
 			vdesc->vd_cno = cno;
 			vdesc->vd_blocknr = blk.b_blocknr;
+			vdesc->vd_flags = 0;
 			if (nilfs_block_is_data(&blk)) {
 				binfo = blk.b_binfo;
 				vdesc->vd_vblocknr =
 					le64_to_cpu(binfo->bi_v.bi_vblocknr);
 				vdesc->vd_offset =
 					le64_to_cpu(binfo->bi_v.bi_blkoff);
-				vdesc->vd_flags = 0;	/* data */
+				nilfs_vdesc_set_data(vdesc);
 			} else {
 				vdesc->vd_vblocknr =
 					le64_to_cpu(*(__le64 *)blk.b_binfo);
-				vdesc->vd_flags = 1;	/* node */
+				nilfs_vdesc_set_node(vdesc);
 			}
 		}
 	}
@@ -391,7 +392,7 @@ static ssize_t nilfs_get_snapshot(struct nilfs *nilfs, nilfs_cno_t **ssp)
  * @n: size of @ss array
  * @last_hit: the last snapshot number hit
  */
-static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
+static int nilfs_vdesc_is_live(struct nilfs_vdesc *vdesc,
 			       nilfs_cno_t protect, const nilfs_cno_t *ss,
 			       size_t n, nilfs_cno_t *last_hit)
 {
@@ -407,18 +408,22 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		return vdesc->vd_period.p_end == NILFS_CNO_MAX;
 	}
 
-	if (vdesc->vd_period.p_end == NILFS_CNO_MAX ||
-	    vdesc->vd_period.p_end > protect)
+	if (vdesc->vd_period.p_end == NILFS_CNO_MAX)
 		return 1;
+
+	if (vdesc->vd_period.p_end > protect)
+		nilfs_vdesc_set_protection_period(vdesc);
 
 	if (n == 0 || vdesc->vd_period.p_start > ss[n - 1] ||
 	    vdesc->vd_period.p_end <= ss[0])
-		return 0;
+		return nilfs_vdesc_protection_period(vdesc);
 
 	/* Try the last hit snapshot number */
 	if (*last_hit >= vdesc->vd_period.p_start &&
-	    *last_hit < vdesc->vd_period.p_end)
+	    *last_hit < vdesc->vd_period.p_end) {
+		nilfs_vdesc_set_snapshot(vdesc);
 		return 1;
+	}
 
 	low = 0;
 	high = n - 1;
@@ -434,10 +439,11 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		} else {
 			/* ss[index] is in the range [p_start, p_end) */
 			*last_hit = ss[index];
+			nilfs_vdesc_set_snapshot(vdesc);
 			return 1;
 		}
 	}
-	return 0;
+	return nilfs_vdesc_protection_period(vdesc);
 }
 
 /**
@@ -602,6 +608,47 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
 }
 
 /**
+ * nilfs_count_live_blocks - returns the number of blocks in segnum
+ * @nilfs: nilfs object
+ * @segnum: segment number
+ * @bdescv: vector object storing (descriptors of) disk block numbers
+ * @vdescv: vector object storing (descriptors of) virtual block numbers
+ */
+static size_t nilfs_count_live_blocks(const struct nilfs *nilfs,
+				      __u64 segnum,
+				      struct nilfs_vector *vdescv,
+				      struct nilfs_vector *bdescv)
+{
+	struct nilfs_vdesc *vdesc;
+	struct nilfs_bdesc *bdesc;
+	int i;
+	size_t res = 0;
+
+	for (i = 0; i < nilfs_vector_get_size(bdescv); i++) {
+		bdesc = nilfs_vector_get_element(bdescv, i);
+		assert(bdesc != NULL);
+
+		if (nilfs_get_segnum_of_block(nilfs, bdesc->bd_blocknr) ==
+				segnum && nilfs_bdesc_is_live(bdesc)) {
+			++res;
+		}
+	}
+
+	for (i = 0; i < nilfs_vector_get_size(vdescv); i++) {
+		vdesc = nilfs_vector_get_element(vdescv, i);
+		assert(vdesc != NULL);
+
+		if (nilfs_get_segnum_of_block(nilfs, vdesc->vd_blocknr) ==
+				segnum && (nilfs_vdesc_snapshot(vdesc) ||
+				!nilfs_vdesc_protection_period(vdesc))) {
+			++res;
+		}
+	}
+
+	return res;
+}
+
+/**
  * nilfs_xreclaim_segment - reclaim segments (enhanced API)
  * @nilfs: nilfs object
  * @segnums: array of segment numbers storing selected segments
@@ -757,7 +804,13 @@ int nilfs_xreclaim_segment(struct nilfs *nilfs,
 			sup->sup_segnum = segnums[i];
 			sup->sup_flags = 0;
 			nilfs_suinfo_update_set_lastmod(sup);
+			nilfs_suinfo_update_set_nblocks(sup);
+
 			sup->sup_sui.sui_lastmod = tv.tv_sec;
+			sup->sup_sui.sui_nblocks =
+				nilfs_count_live_blocks(nilfs,
+						segnums[i], vdescv, bdescv);
+
 		}
 
 		ret = nilfs_set_suinfo(nilfs, nilfs_vector_get_data(supv), n);
