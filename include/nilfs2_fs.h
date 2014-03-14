@@ -483,7 +483,7 @@ struct nilfs_dat_entry {
 	__le64 de_blocknr;
 	__le64 de_start;
 	__le64 de_end;
-	__le64 de_rsv;
+	__le64 de_ss;
 };
 
 /**
@@ -612,11 +612,13 @@ struct nilfs_cpfile_header {
  * @su_lastmod: last modified timestamp
  * @su_nblocks: number of blocks in segment
  * @su_flags: flags
+ * @su_lastdec: last decrement of su_nblocks timestamp
  */
 struct nilfs_segment_usage {
 	__le64 su_lastmod;
 	__le32 su_nblocks;
 	__le32 su_flags;
+	__le64 su_lastdec;
 };
 
 /* segment usage flag */
@@ -659,6 +661,7 @@ nilfs_segment_usage_set_clean(struct nilfs_segment_usage *su)
 	su->su_lastmod = cpu_to_le64(0);
 	su->su_nblocks = cpu_to_le32(0);
 	su->su_flags = cpu_to_le32(0);
+	su->su_lastdec = cpu_to_le64(0);
 }
 
 static inline int
@@ -690,11 +693,13 @@ struct nilfs_sufile_header {
  * @sui_lastmod: timestamp of last modification
  * @sui_nblocks: number of written blocks in segment
  * @sui_flags: segment usage flags
+ * @sui_lastdec: last decrement of sui_nblocks timestamp
  */
 struct nilfs_suinfo {
 	__u64 sui_lastmod;
 	__u32 sui_nblocks;
 	__u32 sui_flags;
+	__u64 sui_lastdec;
 };
 
 #define NILFS_SUINFO_FNS(flag, name)					\
@@ -732,6 +737,7 @@ enum {
 	NILFS_SUINFO_UPDATE_LASTMOD,
 	NILFS_SUINFO_UPDATE_NBLOCKS,
 	NILFS_SUINFO_UPDATE_FLAGS,
+	NILFS_SUINFO_UPDATE_LASTDEC,
 	__NR_NILFS_SUINFO_UPDATE_FIELDS,
 };
 
@@ -755,6 +761,7 @@ nilfs_suinfo_update_##name(const struct nilfs_suinfo_update *sup)	\
 NILFS_SUINFO_UPDATE_FNS(LASTMOD, lastmod)
 NILFS_SUINFO_UPDATE_FNS(NBLOCKS, nblocks)
 NILFS_SUINFO_UPDATE_FNS(FLAGS, flags)
+NILFS_SUINFO_UPDATE_FNS(LASTDEC, lastdec)
 
 enum {
 	NILFS_CHECKPOINT,
