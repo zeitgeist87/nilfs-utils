@@ -273,9 +273,8 @@ static ssize_t nilfs_acc_blocks(struct nilfs *nilfs,
 				return -1;
 			continue;
 		}
-		ret = nilfs_acc_blocks_segment(
-			nilfs, segnums[i], segment, si.sui_nblocks,
-			vdescv, bdescv);
+		ret = nilfs_acc_blocks_segment(nilfs, segnums[i], segment,
+			nilfs_get_blocks_per_segment(nilfs), vdescv, bdescv);
 		if (nilfs_put_segment(nilfs, segment) < 0 || ret < 0)
 			return -1;
 		i++;

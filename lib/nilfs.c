@@ -900,7 +900,8 @@ static int nilfs_psegment_is_valid(const struct nilfs_psegment *pseg)
 {
 	int offset;
 
-	if (le32_to_cpu(pseg->p_segsum->ss_magic) != NILFS_SEGSUM_MAGIC)
+	if (le32_to_cpu(pseg->p_segsum->ss_magic) != NILFS_SEGSUM_MAGIC ||
+			le64_to_cpu(pseg->p_segsum->ss_seq) != pseg->p_seq)
 		return 0;
 
 	offset = sizeof(pseg->p_segsum->ss_datasum) +
@@ -928,6 +929,7 @@ void nilfs_psegment_init(struct nilfs_psegment *pseg, __u64 segnum,
 	pseg->p_seed = le32_to_cpu(nilfs->n_sb->s_crc_seed);
 
 	pseg->p_segsum = seg + blkoff * pseg->p_blksize;
+	pseg->p_seq = le64_to_cpu(pseg->p_segsum->ss_seq);
 	pseg->p_blocknr = pseg->p_segblocknr;
 }
 

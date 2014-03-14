@@ -185,6 +185,7 @@ struct nilfs_psegment {
 	size_t p_maxblocks;
 	size_t p_blksize;
 	__u32 p_seed;
+	__u64 p_seq;
 };
 
 /**
