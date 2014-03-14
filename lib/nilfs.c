@@ -743,6 +743,29 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 }
 
 /**
+ * nilfs_clean_snapshot_flags - cleanup snapshot flags after set_suinfo
+ * @nilfs: nilfs object
+ * @vdescs: array of nilfs_vdesc structs to specify live blocks
+ * @nvdescs: size of @vdescs array (number of items)
+ */
+int nilfs_clean_snapshot_flags(struct nilfs *nilfs,
+			       struct nilfs_vdesc *vdescs, size_t nvdescs)
+{
+	struct nilfs_argv argv;
+
+	if (nilfs->n_iocfd < 0) {
+		errno = EBADF;
+		return -1;
+	}
+
+	memset(&argv, 0, sizeof(struct nilfs_argv));
+	argv.v_base = (unsigned long)vdescs;
+	argv.v_nmembs = nvdescs;
+	argv.v_size = sizeof(struct nilfs_vdesc);
+	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_CLEAN_SNAPSHOT_FLAGS, &argv);
+}
+
+/**
  * nilfs_sync - sync a NILFS file system
  * @nilfs: nilfs object
  * @cnop: buffer to store the latest checkpoint number in

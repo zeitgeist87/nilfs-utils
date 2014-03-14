@@ -762,8 +762,12 @@ int nilfs_xreclaim_segment(struct nilfs *nilfs,
 
 		ret = nilfs_set_suinfo(nilfs, nilfs_vector_get_data(supv), n);
 
-		if (ret == 0)
+		if (ret == 0) {
+			ret = nilfs_clean_snapshot_flags(nilfs,
+					nilfs_vector_get_data(vdescv),
+					nilfs_vector_get_size(vdescv));
 			goto out_lock;
+		}
 
 		if (ret < 0 && errno != ENOTTY) {
 			nilfs_gc_logger(LOG_ERR, "cannot set suinfo: %s",
