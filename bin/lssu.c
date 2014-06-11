@@ -104,8 +104,8 @@ static const struct lssu_format lssu_format[] = {
 	},
 	{
 		"           SEGNUM        DATE     TIME STAT     NBLOCKS" \
-		"       NLIVEBLOCKS",
-		"%17llu  %s %c%c%c%c  %10u %10u (%3u%%)\n"
+		"       NLIVEBLOCKS   NPREDLIVEBLOCKS",
+		"%17llu  %s %c%c%c%c  %10u %10u (%3u%%) %10u (%3u%%)\n"
 	}
 };
 
@@ -164,9 +164,9 @@ static ssize_t lssu_print_suinfo(struct nilfs *nilfs, __u64 segnum,
 	time_t t;
 	char timebuf[LSSU_BUFSIZE];
 	ssize_t i, n = 0, ret;
-	int ratio;
+	int ratio, predratio;
 	int protected;
-	size_t nliveblks;
+	size_t nliveblks, npredliveblks;
 
 	for (i = 0; i < nsi; i++, segnum++) {
 		if (!all && nilfs_suinfo_clean(&suinfos[i]))
@@ -192,7 +192,10 @@ static ssize_t lssu_print_suinfo(struct nilfs *nilfs, __u64 segnum,
 			break;
 		case LSSU_MODE_LATEST_USAGE:
 			nliveblks = 0;
+			npredliveblks = suinfos[i].sui_nlive_blks;
 			ratio = 0;
+			predratio = (npredliveblks * 100 + 99) /
+					blocks_per_segment;
 			protected = suinfos[i].sui_lastmod >= prottime;
 
 			if (!nilfs_suinfo_dirty(&suinfos[i]) ||
@@ -223,7 +226,8 @@ skip_scan:
 			       nilfs_suinfo_dirty(&suinfos[i]) ? 'd' : '-',
 			       nilfs_suinfo_error(&suinfos[i]) ? 'e' : '-',
 			       protected ? 'p' : '-',
-			       suinfos[i].sui_nblocks, nliveblks, ratio);
+			       suinfos[i].sui_nblocks, nliveblks, ratio,
+			       npredliveblks, predratio);
 			break;
 		}
 		n++;

@@ -116,7 +116,12 @@ static time_t creation_time;
 static char volume_label[80];
 static __u64 compat_array[NILFS_MAX_FEATURE_TYPES] = {
 	/* Compat */
-	0,
+	/*
+	 * SUFILE_EXTENSION is set by default, because
+	 * it is fully compatible with previous versions and it
+	 * cannot be enabled later with nilfs-tune
+	 */
+	NILFS_FEATURE_COMPAT_SUFILE_EXTENSION,
 	/* Read-only compat */
 	0,
 	/* Incompat */
@@ -375,12 +380,33 @@ static unsigned count_ifile_blocks(void)
 	return nblocks;
 }
 
+static inline int sufile_extension_enabled(void)
+{
+	return compat_array[NILFS_FEATURE_TYPE_COMPAT] &
+			NILFS_FEATURE_COMPAT_SUFILE_EXTENSION;
+}
+
+static unsigned get_sufile_entry_size(void)
+{
+	if (sufile_extension_enabled())
+		return NILFS_EXT_SEGMENT_USAGE_SIZE;
+	else
+		return NILFS_MIN_SEGMENT_USAGE_SIZE;
+}
+
+static unsigned get_sufile_first_entry_offset(void)
+{
+	unsigned susz = get_sufile_entry_size();
+
+	return NILFS_SUFILE_FIRST_SEGMENT_USAGE_OFFSET(susz);
+}
+
 static unsigned count_sufile_blocks(void)
 {
 	unsigned long sufile_segment_usages_per_block
-		= blocksize / sizeof(struct nilfs_segment_usage);
+		= blocksize / get_sufile_entry_size();
 	return DIV_ROUND_UP(nr_initial_segments +
-			   NILFS_SUFILE_FIRST_SEGMENT_USAGE_OFFSET,
+			   get_sufile_first_entry_offset(),
 			   sufile_segment_usages_per_block);
 }
 
@@ -1056,7 +1082,7 @@ static inline void check_ctime(time_t ctime)
 
 static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Compat */
-	0,
+	NILFS_FEATURE_COMPAT_SUFILE_EXTENSION,
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
@@ -1499,8 +1525,8 @@ static void commit_cpfile(void)
 static void prepare_sufile(void)
 {
 	struct nilfs_file_info *fi = nilfs.files[NILFS_SUFILE_INO];
-	const unsigned entries_per_block
-		= blocksize / sizeof(struct nilfs_segment_usage);
+	const size_t susz = get_sufile_entry_size();
+	const unsigned entries_per_block = blocksize / susz;
 	blocknr_t blocknr = fi->start;
 	blocknr_t entry_block = blocknr;
 	struct nilfs_sufile_header *header;
@@ -1516,10 +1542,10 @@ static void prepare_sufile(void)
 	for (entry_block = blocknr;
 	     entry_block < blocknr + fi->nblocks; entry_block++) {
 		i = (entry_block == blocknr) ?
-			NILFS_SUFILE_FIRST_SEGMENT_USAGE_OFFSET : 0;
-		su = (struct nilfs_segment_usage *)
-			map_disk_buffer(entry_block, 1) + i;
-		for (; i < entries_per_block; i++, su++, segnum++) {
+			get_sufile_first_entry_offset() : 0;
+		su = map_disk_buffer(entry_block, 1) + i * susz;
+		for (; i < entries_per_block; i++, su = (void *)su + susz,
+		     segnum++) {
 #if 0 /* these fields are cleared when mapped first */
 			su->su_lastmod = 0;
 			su->su_nblocks = 0;
@@ -1529,7 +1555,7 @@ static void prepare_sufile(void)
 				nilfs_segment_usage_set_active(su);
 				nilfs_segment_usage_set_dirty(su);
 			} else
-				nilfs_segment_usage_set_clean(su);
+				nilfs_segment_usage_set_clean(su, susz);
 		}
 	}
 	init_inode(NILFS_SUFILE_INO, DT_REG, 0, 0);
@@ -1538,19 +1564,26 @@ static void prepare_sufile(void)
 static void commit_sufile(void)
 {
 	struct nilfs_file_info *fi = nilfs.files[NILFS_SUFILE_INO];
-	const unsigned entries_per_block
-		= blocksize / sizeof(struct nilfs_segment_usage);
+	const size_t susz = get_sufile_entry_size();
+	const unsigned entries_per_block = blocksize / susz;
 	struct nilfs_segment_usage *su;
 	unsigned segnum = fi->start / nilfs.diskinfo->blocks_per_segment;
 	blocknr_t blocknr = fi->start +
-		(segnum + NILFS_SUFILE_FIRST_SEGMENT_USAGE_OFFSET) /
+		(segnum + get_sufile_first_entry_offset()) /
+		entries_per_block;
+	size_t entry_off = (segnum + get_sufile_first_entry_offset()) %
 		entries_per_block;
 
-	su = map_disk_buffer(blocknr, 1);
-	su += (segnum + NILFS_SUFILE_FIRST_SEGMENT_USAGE_OFFSET) %
-		entries_per_block;
+	su = map_disk_buffer(blocknr, 1) + entry_off * susz;
+
 	su->su_lastmod = cpu_to_le64(nilfs.diskinfo->ctime);
 	su->su_nblocks = cpu_to_le32(nilfs.current_segment->nblocks);
+	if (sufile_extension_enabled()) {
+		/* nlive_blks = nblocks - (nsummary_blks + nsuperroot_blks) */
+		su->su_nlive_blks = cpu_to_le32(nilfs.current_segment->nblocks -
+				(nilfs.current_segment->nblk_sum + 1));
+		su->su_nlive_lastmod = su->su_lastmod;
+	}
 }
 
 static void prepare_dat(void)
@@ -1756,7 +1789,7 @@ static void prepare_super_block(struct nilfs_disk_info *di)
 	raw_sb->s_checkpoint_size =
 		cpu_to_le16(sizeof(struct nilfs_checkpoint));
 	raw_sb->s_segment_usage_size =
-		cpu_to_le16(sizeof(struct nilfs_segment_usage));
+		cpu_to_le16(get_sufile_entry_size());
 
 	raw_sb->s_feature_compat =
 		cpu_to_le64(compat_array[NILFS_FEATURE_TYPE_COMPAT]);
