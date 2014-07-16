@@ -128,6 +128,7 @@ static int nilfs_acc_blocks_file(struct nilfs_file *file,
 				return -1;
 			bdesc->bd_ino = ino;
 			bdesc->bd_oblocknr = blk.b_blocknr;
+			bdesc->bd_pad = 0;
 			if (nilfs_block_is_data(&blk)) {
 				bdesc->bd_offset =
 					le64_to_cpu(*(__le64 *)blk.b_binfo);
@@ -148,17 +149,19 @@ static int nilfs_acc_blocks_file(struct nilfs_file *file,
 			vdesc->vd_ino = ino;
 			vdesc->vd_cno = cno;
 			vdesc->vd_blocknr = blk.b_blocknr;
+			vdesc->vd_flags = 0;
+			vdesc->vd_blk_flags = 0;
 			if (nilfs_block_is_data(&blk)) {
 				binfo = blk.b_binfo;
 				vdesc->vd_vblocknr =
 					le64_to_cpu(binfo->bi_v.bi_vblocknr);
 				vdesc->vd_offset =
 					le64_to_cpu(binfo->bi_v.bi_blkoff);
-				vdesc->vd_flags = 0;	/* data */
+				nilfs_vdesc_set_data(vdesc);
 			} else {
 				vdesc->vd_vblocknr =
 					le64_to_cpu(*(__le64 *)blk.b_binfo);
-				vdesc->vd_flags = 1;	/* node */
+				nilfs_vdesc_set_node(vdesc);
 			}
 		}
 	}
@@ -392,7 +395,7 @@ static ssize_t nilfs_get_snapshot(struct nilfs *nilfs, nilfs_cno_t **ssp)
  * @n: size of @ss array
  * @last_hit: the last snapshot number hit
  */
-static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
+static int nilfs_vdesc_is_live(struct nilfs_vdesc *vdesc,
 			       nilfs_cno_t protect, const nilfs_cno_t *ss,
 			       size_t n, nilfs_cno_t *last_hit)
 {
@@ -408,18 +411,22 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		return vdesc->vd_period.p_end == NILFS_CNO_MAX;
 	}
 
-	if (vdesc->vd_period.p_end == NILFS_CNO_MAX ||
-	    vdesc->vd_period.p_end > protect)
+	if (vdesc->vd_period.p_end == NILFS_CNO_MAX)
 		return 1;
+
+	if (vdesc->vd_period.p_end > protect)
+		nilfs_vdesc_set_protection_period(vdesc);
 
 	if (n == 0 || vdesc->vd_period.p_start > ss[n - 1] ||
 	    vdesc->vd_period.p_end <= ss[0])
-		return 0;
+		return nilfs_vdesc_protection_period(vdesc);
 
 	/* Try the last hit snapshot number */
 	if (*last_hit >= vdesc->vd_period.p_start &&
-	    *last_hit < vdesc->vd_period.p_end)
+	    *last_hit < vdesc->vd_period.p_end) {
+		nilfs_vdesc_set_snapshot(vdesc);
 		return 1;
+	}
 
 	low = 0;
 	high = n - 1;
@@ -435,10 +442,11 @@ static int nilfs_vdesc_is_live(const struct nilfs_vdesc *vdesc,
 		} else {
 			/* ss[index] is in the range [p_start, p_end) */
 			*last_hit = ss[index];
+			nilfs_vdesc_set_snapshot(vdesc);
 			return 1;
 		}
 	}
-	return 0;
+	return nilfs_vdesc_protection_period(vdesc);
 }
 
 /**
@@ -476,8 +484,18 @@ static int nilfs_toss_vdescs(struct nilfs *nilfs,
 			vdesc = nilfs_vector_get_element(vdescv, j);
 			assert(vdesc != NULL);
 			if (nilfs_vdesc_is_live(vdesc, protcno, ss, n,
-						&last_hit))
+						&last_hit)) {
+				/*
+				 * vd_period is not used any more after this,
+				 * but by setting it to 0 it can be used
+				 * as a flag to the kernel that vd_blk_flags
+				 * is used (old userspace tools didn't
+				 * initialize vd_pad to 0)
+				 */
+				vdesc->vd_period.p_start = 0;
+				vdesc->vd_period.p_end = 0;
 				break;
+			}
 
 			/*
 			 * Add the virtual block number to the candidate
