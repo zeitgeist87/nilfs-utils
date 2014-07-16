@@ -659,6 +659,70 @@ static size_t nilfs_count_nlive_blks(const struct nilfs *nilfs,
 }
 
 /**
+ * nilfs_set_inc_flag_vdescs - wrapper for nilfs_set_inc_flags
+ * @nilfs: nilfs object
+ * @vdescv: vector object storing (descriptors of) virtual block numbers
+ *
+ * Description: Calls nilfs_set_inc_flags() for all elements of vdescv that
+ * have the snapshot flag set. If the NILFS_IOCTL_SET_INC_FLAGS ioctl is not
+ * supported by the kernel, the track_snapshot option is disabled.
+ *
+ * This is important to accurately track snapshots if the set_suinfo ioctl
+ * is used. When the GC cleans a segment, the kernel moves the live blocks
+ * to a new segment, and sets the su_nlive_blks counter to the corresponding
+ * value. This also entails, that under certain conditions the flags of the
+ * DAT-Entries for the moved blocks are updated and made to agree with the
+ * su_nlive_blks counter. But this does not occur if the set_suinfo ioctl is
+ * used. Therefore this function is needed to tell the kernel, which
+ * DAT-Entries to update.
+ *
+ * Return Value: On success, zero is returned.  On error, a negative value
+ * is returned. If errno is set to ENOTTY, the kernel doesn't support
+ * the set_inc_flags ioctl.
+ */
+static int nilfs_set_inc_flag_vdescs(struct nilfs *nilfs,
+				     struct nilfs_vector *vdescv)
+{
+	struct nilfs_vector *vblocknrv;
+	struct nilfs_vdesc *vdesc;
+	__u64 *vblocknrp;
+	int i, ret = -1;
+
+	vblocknrv = nilfs_vector_create(sizeof(__u64));
+	if (!vblocknrv)
+		goto out;
+
+	for (i = 0; i < nilfs_vector_get_size(vdescv); i++) {
+		vdesc = nilfs_vector_get_element(vdescv, i);
+		assert(vdesc != NULL);
+
+		if (nilfs_vdesc_snapshot(vdesc)) {
+			vblocknrp = nilfs_vector_get_new_element(vblocknrv);
+			if (!vblocknrp)
+				goto out;
+			*vblocknrp = vdesc->vd_vblocknr;
+		}
+	}
+
+	ret = 0;
+	if (nilfs_vector_get_size(vblocknrv) > 0) {
+		ret = nilfs_set_inc_flags(nilfs,
+					  nilfs_vector_get_data(vblocknrv),
+					  nilfs_vector_get_size(vblocknrv));
+		if (ret < 0 && errno == ENOTTY) {
+			nilfs_gc_logger(LOG_WARNING,
+					"set_inc_flags ioctl is not supported");
+			nilfs_opt_clear_track_snapshots(nilfs);
+			ret = 0;
+		}
+	}
+
+out:
+	nilfs_vector_destroy(vblocknrv);
+	return ret;
+}
+
+/**
  * nilfs_try_set_suinfo - wrapper for nilfs_set_suinfo
  * @nilfs: nilfs object
  * @segnums: array of segment numbers storing selected segments
@@ -727,6 +791,9 @@ static int nilfs_try_set_suinfo(struct nilfs *nilfs, __u64 *segnums,
 					"sufile extension is not supported");
 			nilfs_opt_clear_track_live_blks(nilfs);
 		}
+	} else {
+		if (nilfs_opt_test_track_snapshots(nilfs))
+			ret = nilfs_set_inc_flag_vdescs(nilfs, vdescv);
 	}
 
 out:

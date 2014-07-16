@@ -131,6 +131,7 @@ struct nilfs {
 #define NILFS_OPT_MMAP		0x01
 #define NILFS_OPT_SET_SUINFO	0x02
 #define NILFS_OPT_TRACK_LIVE_BLKS	0x04
+#define NILFS_OPT_TRACK_SNAPSHOTS	0x08
 
 
 struct nilfs *nilfs_open(const char *, const char *, int);
@@ -161,6 +162,7 @@ nilfs_opt_test_##name(const struct nilfs *nilfs)			\
 
 NILFS_OPT_FLAG(SET_SUINFO, set_suinfo);
 NILFS_OPT_FLAG(TRACK_LIVE_BLKS, track_live_blks);
+NILFS_OPT_FLAG(TRACK_SNAPSHOTS, track_snapshots);
 
 nilfs_cno_t nilfs_get_oldest_cno(struct nilfs *);
 
@@ -329,6 +331,8 @@ ssize_t nilfs_get_bdescs(const struct nilfs *, struct nilfs_bdesc *, size_t);
 int nilfs_clean_segments(struct nilfs *, struct nilfs_vdesc *, size_t,
 			 struct nilfs_period *, size_t, __u64 *, size_t,
 			 struct nilfs_bdesc *, size_t, __u64 *, size_t);
+int nilfs_set_inc_flags(struct nilfs *nilfs, __u64 *vblocknrs,
+			size_t nvblocknrs);
 int nilfs_sync(const struct nilfs *, nilfs_cno_t *);
 int nilfs_resize(struct nilfs *nilfs, off_t size);
 int nilfs_set_alloc_range(struct nilfs *nilfs, off_t start, off_t end);
@@ -354,6 +358,13 @@ static inline int nilfs_feature_track_live_blks(const struct nilfs *nilfs)
 	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
 	return (fc & NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS) &&
 		(fc & NILFS_FEATURE_COMPAT_SUFILE_EXTENSION);
+}
+
+static inline int nilfs_feature_track_snapshots(const struct nilfs *nilfs)
+{
+	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
+	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS) &&
+		nilfs_feature_track_live_blks(nilfs);
 }
 
 #endif	/* NILFS_H */

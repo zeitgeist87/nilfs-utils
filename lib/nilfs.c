@@ -381,6 +381,8 @@ struct nilfs *nilfs_open(const char *dev, const char *dir, int flags)
 
 		if (nilfs_feature_track_live_blks(nilfs))
 			nilfs_opt_set_track_live_blks(nilfs);
+		if (nilfs_feature_track_snapshots(nilfs))
+			nilfs_opt_set_track_snapshots(nilfs);
 	}
 
 	if (flags &
@@ -710,6 +712,45 @@ int nilfs_clean_segments(struct nilfs *nilfs,
 	argv[4].v_nmembs = nsegs;
 	argv[4].v_size = sizeof(__u64);
 	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_CLEAN_SEGMENTS, argv);
+}
+
+/**
+ * nilfs_set_inc_flags - set incremented flag to blocks after set_suinfo
+ * @nilfs: nilfs object
+ * @vblocknrs: array of virtual block addresses
+ * @nvblocknrs: size of @vblocknrs array (number of items)
+ *
+ * Description: This is important to accurately track snapshots if the
+ * set_suinfo ioctl is used. When the GC cleans a segment, the kernel moves
+ * the live blocks to a new segment, and sets the su_nlive_blks counter to
+ * the corresponding value. This also entails, that under certain conditions
+ * the flags of the DAT-Entries for the moved blocks are updated and made to
+ * agree with the su_nlive_blks counter. But this does not occur if the
+ * set_suinfo ioctl is used. Therefore this ioctl is needed to tell the
+ * kernel, which DAT-Entries to update.
+ *
+ * The flag essentially prevents the counter from being incremented multiple
+ * times for one and the same block.
+ *
+ * Return Value: On success, zero is returned.  On error, a negative value
+ * is returned. If errno is set to ENOTTY, the kernel doesn't support
+ * the set_inc_flags ioctl.
+ */
+int nilfs_set_inc_flags(struct nilfs *nilfs, __u64 *vblocknrs,
+			size_t nvblocknrs)
+{
+	struct nilfs_argv argv;
+
+	if (nilfs->n_iocfd < 0) {
+		errno = EBADF;
+		return -1;
+	}
+
+	memset(&argv, 0, sizeof(struct nilfs_argv));
+	argv.v_base = (unsigned long)vblocknrs;
+	argv.v_nmembs = nvblocknrs;
+	argv.v_size = sizeof(__u64);
+	return ioctl(nilfs->n_iocfd, NILFS_IOCTL_SET_INC_FLAGS, &argv);
 }
 
 /**
