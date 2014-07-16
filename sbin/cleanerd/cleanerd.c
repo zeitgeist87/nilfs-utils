@@ -417,13 +417,25 @@ static void nilfs_cleanerd_destroy(struct nilfs_cleanerd *cleanerd)
 	free(cleanerd);
 }
 
-static int nilfs_comp_segimp(const void *elem1, const void *elem2)
+static int nilfs_comp_segimp_asc(const void *elem1, const void *elem2)
 {
 	const struct nilfs_segimp *segimp1 = elem1, *segimp2 = elem2;
 
 	if (segimp1->si_importance < segimp2->si_importance)
 		return -1;
 	else if (segimp1->si_importance > segimp2->si_importance)
+		return 1;
+
+	return (segimp1->si_segnum < segimp2->si_segnum) ? -1 : 1;
+}
+
+static int nilfs_comp_segimp_desc(const void *elem1, const void *elem2)
+{
+	const struct nilfs_segimp *segimp1 = elem1, *segimp2 = elem2;
+
+	if (segimp1->si_importance > segimp2->si_importance)
+		return -1;
+	else if (segimp1->si_importance < segimp2->si_importance)
 		return 1;
 
 	return (segimp1->si_segnum < segimp2->si_segnum) ? -1 : 1;
@@ -580,7 +592,7 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	size_t count, nsegs;
 	ssize_t nssegs, n;
 	unsigned long long imp, thr;
-	int i;
+	int i, sib;
 
 	nsegs = nilfs_cleanerd_ncleansegs(cleanerd);
 	nilfs = cleanerd->nilfs;
@@ -600,11 +612,17 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 	prottime = tv2.tv_sec;
 	oldest = tv.tv_sec;
 
-	/* The segments that have larger importance than thr are not
+	/*
+	 * sufile extension fields may not be initialized by
+	 * nilfs_get_suinfo()
+	 */
+	memset(si, 0, sizeof(si));
+
+	/* The segments that have larger/smaller importance than thr are not
 	 * selected. */
-	thr = (config->cf_selection_policy.p_threshold != 0) ?
-		config->cf_selection_policy.p_threshold :
-		sustat->ss_nongc_ctime;
+	thr = config->cf_selection_policy.p_threshold;
+	sib = config->cf_selection_policy.p_comparison ==
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
 
 	for (segnum = 0; segnum < sustat->ss_nsegs; segnum += n) {
 		count = min_t(__u64, sustat->ss_nsegs - segnum,
@@ -615,11 +633,13 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 			goto out;
 		}
 		for (i = 0; i < n; i++) {
-			if (!nilfs_suinfo_reclaimable(&si[i]))
+			if (!nilfs_suinfo_reclaimable(&si[i]) ||
+				si[i].sui_lastmod >= sustat->ss_nongc_ctime)
 				continue;
 
-			imp = config->cf_selection_policy.p_importance(&si[i]);
-			if (imp < thr) {
+			imp = config->cf_selection_policy.p_importance(&si[i],
+					sustat, prottime);
+			if (!thr || (sib && imp < thr) || (!sib && imp > thr)) {
 				if (si[i].sui_lastmod < oldest)
 					oldest = si[i].sui_lastmod;
 				if (si[i].sui_lastmod < prottime) {
@@ -642,7 +662,10 @@ nilfs_cleanerd_select_segments(struct nilfs_cleanerd *cleanerd,
 			break;
 		}
 	}
-	nilfs_vector_sort(smv, nilfs_comp_segimp);
+	if (sib)
+		nilfs_vector_sort(smv, nilfs_comp_segimp_asc);
+	else
+		nilfs_vector_sort(smv, nilfs_comp_segimp_desc);
 
 	nssegs = (nilfs_vector_get_size(smv) < nsegs) ?
 		nilfs_vector_get_size(smv) : nsegs;
