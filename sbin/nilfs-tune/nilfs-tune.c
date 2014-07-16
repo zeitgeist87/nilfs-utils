@@ -84,7 +84,7 @@ static void nilfs_tune_usage(void)
 
 static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Compat */
-	0,
+	NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS,
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
@@ -93,7 +93,7 @@ static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 
 static const __u64 clear_ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Compat */
-	0,
+	NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS,
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
