@@ -380,7 +380,9 @@ nilfs_cldconfig_handle_clean_check_interval(struct nilfs_cldconfig *config,
 }
 
 static unsigned long long
-nilfs_cldconfig_selection_policy_timestamp(const struct nilfs_suinfo *si)
+nilfs_cldconfig_selection_policy_timestamp(const struct nilfs_suinfo *si,
+					   const struct nilfs_sustat *sustat,
+					   __u64 prottime)
 {
 	return si->sui_lastmod;
 }
@@ -392,13 +394,84 @@ nilfs_cldconfig_handle_selection_policy_timestamp(struct nilfs_cldconfig *config
 	config->cf_selection_policy.p_importance =
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
 	config->cf_selection_policy.p_threshold =
-		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+		NILFS_CLDCONFIG_SELECTION_POLICY_NO_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+		NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER;
+	return 0;
+}
+
+static unsigned long long
+nilfs_cldconfig_selection_policy_greedy(const struct nilfs_suinfo *si,
+					const struct nilfs_sustat *sustat,
+					__u64 prottime)
+{
+	if (si->sui_nblocks < si->sui_nlive_blks ||
+	    si->sui_nlive_lastmod >= prottime)
+		return 0;
+
+	return si->sui_nblocks - si->sui_nlive_blks;
+}
+
+static int
+nilfs_cldconfig_handle_selection_policy_greedy(struct nilfs_cldconfig *config,
+					       char **tokens, size_t ntoks)
+{
+	config->cf_selection_policy.p_importance =
+		nilfs_cldconfig_selection_policy_greedy;
+	config->cf_selection_policy.p_threshold =
+		NILFS_CLDCONFIG_SELECTION_POLICY_NO_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+		NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
+	return 0;
+}
+
+static unsigned long long
+nilfs_cldconfig_selection_policy_cost_benefit(const struct nilfs_suinfo *si,
+					      const struct nilfs_sustat *sustat,
+					      __u64 prottime)
+{
+	__u32 free_blocks, cleaning_cost;
+	unsigned long long age;
+
+	if (si->sui_nblocks < si->sui_nlive_blks ||
+	    sustat->ss_nongc_ctime < si->sui_lastmod ||
+	    si->sui_nlive_lastmod >= prottime)
+		return 0;
+
+	free_blocks = si->sui_nblocks - si->sui_nlive_blks;
+	/* read the whole segment + write the live blocks */
+	cleaning_cost = 2 * si->sui_nlive_blks;
+	/*
+	 * multiply by 1000 to convert age to milliseconds
+	 * (higher precision for division)
+	 */
+	age = (sustat->ss_nongc_ctime - si->sui_lastmod) * 1000;
+
+	if (cleaning_cost == 0)
+		cleaning_cost = 1;
+
+	return (age * free_blocks) / cleaning_cost;
+}
+
+static int
+nilfs_cldconfig_handle_selection_policy_cost_benefit(
+						struct nilfs_cldconfig *config,
+						char **tokens, size_t ntoks)
+{
+	config->cf_selection_policy.p_importance =
+		nilfs_cldconfig_selection_policy_cost_benefit;
+	config->cf_selection_policy.p_threshold =
+		NILFS_CLDCONFIG_SELECTION_POLICY_NO_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+		NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER;
 	return 0;
 }
 
 static const struct nilfs_cldconfig_polhandle
 nilfs_cldconfig_polhandle_table[] = {
 	{"timestamp",	nilfs_cldconfig_handle_selection_policy_timestamp},
+	{"greedy",	nilfs_cldconfig_handle_selection_policy_greedy},
+	{"cost-benefit", nilfs_cldconfig_handle_selection_policy_cost_benefit},
 };
 
 #define NILFS_CLDCONFIG_NPOLHANDLES			\
@@ -690,6 +763,8 @@ static void nilfs_cldconfig_set_default(struct nilfs_cldconfig *config,
 		NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE;
 	config->cf_selection_policy.p_threshold =
 		NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD;
+	config->cf_selection_policy.p_comparison =
+		NILFS_CLDCONFIG_SELECTION_POLICY_COMPARISON;
 	config->cf_protection_period.tv_sec = NILFS_CLDCONFIG_PROTECTION_PERIOD;
 	config->cf_protection_period.tv_usec = 0;
 
