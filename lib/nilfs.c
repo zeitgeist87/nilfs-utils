@@ -381,7 +381,7 @@ struct nilfs *nilfs_open(const char *dev, const char *dir, int flags)
 
 		if (nilfs_feature_track_live_blks(nilfs))
 			nilfs_opt_set_track_live_blks(nilfs);
-		if (nilfs_feature_track_snapshots(nilfs))
+		if (nilfs_feature_track_snapshots_half(nilfs))
 			nilfs_opt_set_track_snapshots(nilfs);
 	}
 

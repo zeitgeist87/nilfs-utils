@@ -360,10 +360,24 @@ static inline int nilfs_feature_track_live_blks(const struct nilfs *nilfs)
 		(fc & NILFS_FEATURE_COMPAT_SUFILE_EXTENSION);
 }
 
-static inline int nilfs_feature_track_snapshots(const struct nilfs *nilfs)
+static inline int nilfs_feature_track_snapshots_def(const struct nilfs *nilfs)
 {
 	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
-	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS) &&
+	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_DEF) &&
+		nilfs_feature_track_live_blks(nilfs);
+}
+
+static inline int nilfs_feature_track_snapshots_half(const struct nilfs *nilfs)
+{
+	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
+	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_HALF) &&
+		nilfs_feature_track_live_blks(nilfs);
+}
+
+static inline int nilfs_feature_track_snapshots_full(const struct nilfs *nilfs)
+{
+	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
+	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_FULL) &&
 		nilfs_feature_track_live_blks(nilfs);
 }
 

@@ -60,7 +60,11 @@ static const struct nilfs_feature features[] = {
 	{ NILFS_FEATURE_TYPE_COMPAT,
 	  NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS, "track_live_blks" },
 	{ NILFS_FEATURE_TYPE_COMPAT,
-	  NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS, "track_snapshots" },
+	  NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_DEF, "track_snapshots" },
+	{ NILFS_FEATURE_TYPE_COMPAT,
+	  NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_HALF, "track_snapshots_half" },
+	{ NILFS_FEATURE_TYPE_COMPAT,
+	  NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS_FULL, "track_snapshots_full" },
 	/* Read-only compat features */
 	{ NILFS_FEATURE_TYPE_COMPAT_RO,
 	  NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT, "block_count" },
