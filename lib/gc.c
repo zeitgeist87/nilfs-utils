@@ -629,12 +629,13 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
 static size_t nilfs_count_nlive_blks(const struct nilfs *nilfs,
 				     __u64 segnum,
 				     struct nilfs_vector *vdescv,
-				     struct nilfs_vector *bdescv)
+				     struct nilfs_vector *bdescv,
+				     size_t *pnss)
 {
 	struct nilfs_vdesc *vdesc;
 	struct nilfs_bdesc *bdesc;
 	int i;
-	size_t res = 0;
+	size_t res = 0, nss = 0;
 
 	for (i = 0; i < nilfs_vector_get_size(bdescv); i++) {
 		bdesc = nilfs_vector_get_element(bdescv, i);
@@ -651,9 +652,15 @@ static size_t nilfs_count_nlive_blks(const struct nilfs *nilfs,
 
 		if (nilfs_get_segnum_of_block(nilfs, vdesc->vd_blocknr) ==
 		    segnum && (nilfs_vdesc_snapshot(vdesc) ||
-		    !nilfs_vdesc_protection_period(vdesc)))
+		    !nilfs_vdesc_protection_period(vdesc))) {
 			++res;
+			if (nilfs_vdesc_snapshot(vdesc))
+				++nss;
+		}
 	}
+
+	if (pnss)
+		*pnss = nss;
 
 	return res;
 }
@@ -685,7 +692,7 @@ static int nilfs_try_set_suinfo(struct nilfs *nilfs, __u64 *segnums,
 	struct nilfs_suinfo_update *sup;
 	struct timeval tv;
 	int ret = -1;
-	size_t i, nblocks;
+	size_t i, nblocks, nss;
 
 	supv = nilfs_vector_create(sizeof(struct nilfs_suinfo_update));
 	if (!supv)
@@ -709,10 +716,12 @@ static int nilfs_try_set_suinfo(struct nilfs *nilfs, __u64 *segnums,
 
 		if (nilfs_opt_test_track_live_blks(nilfs)) {
 			nilfs_suinfo_update_set_nlive_blks(sup);
+			nilfs_suinfo_update_set_nsnapshot_blks(sup);
 
 			nblocks = nilfs_count_nlive_blks(nilfs,
-					segnums[i], vdescv, bdescv);
+					segnums[i], vdescv, bdescv, &nss);
 			sup->sup_sui.sui_nlive_blks = nblocks;
+			sup->sup_sui.sui_nsnapshot_blks = nss;
 		}
 	}
 

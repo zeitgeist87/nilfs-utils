@@ -131,6 +131,7 @@ struct nilfs {
 #define NILFS_OPT_MMAP		0x01
 #define NILFS_OPT_SET_SUINFO	0x02
 #define NILFS_OPT_TRACK_LIVE_BLKS	0x04
+#define NILFS_OPT_TRACK_SNAPSHOTS	0x08
 
 
 struct nilfs *nilfs_open(const char *, const char *, int);
@@ -161,6 +162,7 @@ nilfs_opt_test_##name(const struct nilfs *nilfs)			\
 
 NILFS_OPT_FLAG(SET_SUINFO, set_suinfo);
 NILFS_OPT_FLAG(TRACK_LIVE_BLKS, track_live_blks);
+NILFS_OPT_FLAG(TRACK_SNAPSHOTS, track_snapshots);
 
 nilfs_cno_t nilfs_get_oldest_cno(struct nilfs *);
 
@@ -354,6 +356,13 @@ static inline int nilfs_feature_track_live_blks(const struct nilfs *nilfs)
 	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
 	return (fc & NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS) &&
 		(fc & NILFS_FEATURE_COMPAT_SUFILE_EXTENSION);
+}
+
+static inline int nilfs_feature_track_snapshots(const struct nilfs *nilfs)
+{
+	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
+	return (fc & NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS) &&
+		nilfs_feature_track_live_blks(nilfs);
 }
 
 #endif	/* NILFS_H */

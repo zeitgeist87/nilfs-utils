@@ -182,6 +182,12 @@ Enables the tracking of live blocks, which might improve the effectiveness of
 garbage collection, but entails a small runtime overhead. It is important to
 note, that this feature depends on sufile_ext, which can only be set
 at file system creation time.
+.TP
+.B track_snapshots
+Enables an efficient heuristic tracking of the number of snapshot blocks in a
+segment. This prevents starvation of segments and improves the overall
+performance. It is important to note, that this feature depends on sufile_ext,
+which can only be set at file system creation time.
 .RE
 .TP
 .B \-q

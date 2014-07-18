@@ -221,11 +221,13 @@ struct nilfs_super_block {
  */
 #define NILFS_FEATURE_COMPAT_SUFILE_EXTENSION		(1ULL << 0)
 #define NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS		(1ULL << 1)
+#define NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS		(1ULL << 2)
 
 #define NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT		(1ULL << 0)
 
 #define NILFS_FEATURE_COMPAT_SUPP	(NILFS_FEATURE_COMPAT_SUFILE_EXTENSION \
-				| NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS)
+				| NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS \
+				| NILFS_FEATURE_COMPAT_TRACK_SNAPSHOTS)
 #define NILFS_FEATURE_COMPAT_RO_SUPP	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT
 #define NILFS_FEATURE_INCOMPAT_SUPP	0ULL
 
@@ -630,7 +632,7 @@ struct nilfs_segment_usage {
 	__le32 su_nblocks;
 	__le32 su_flags;
 	__le32 su_nlive_blks;
-	__le32 su_pad;
+	__le32 su_nsnapshot_blks;
 	__le64 su_nlive_lastmod;
 };
 
@@ -682,7 +684,7 @@ nilfs_segment_usage_set_clean(struct nilfs_segment_usage *su, size_t susz)
 	su->su_flags = cpu_to_le32(0);
 	if (susz >= NILFS_EXT_SEGMENT_USAGE_SIZE) {
 		su->su_nlive_blks = cpu_to_le32(0);
-		su->su_pad = cpu_to_le32(0);
+		su->su_nsnapshot_blks = cpu_to_le32(0);
 		su->su_nlive_lastmod = cpu_to_le64(0);
 	}
 }
@@ -723,7 +725,7 @@ struct nilfs_suinfo {
 	__u32 sui_nblocks;
 	__u32 sui_flags;
 	__u32 sui_nlive_blks;
-	__u32 sui_pad;
+	__u32 sui_nsnapshot_blks;
 	__u64 sui_nlive_lastmod;
 };
 
@@ -764,6 +766,7 @@ enum {
 	NILFS_SUINFO_UPDATE_FLAGS,
 	NILFS_SUINFO_UPDATE_NLIVE_BLKS,
 	NILFS_SUINFO_UPDATE_NLIVE_LASTMOD,
+	NILFS_SUINFO_UPDATE_NSNAPSHOT_BLKS,
 	__NR_NILFS_SUINFO_UPDATE_FIELDS,
 };
 
@@ -788,6 +791,7 @@ NILFS_SUINFO_UPDATE_FNS(LASTMOD, lastmod)
 NILFS_SUINFO_UPDATE_FNS(NBLOCKS, nblocks)
 NILFS_SUINFO_UPDATE_FNS(FLAGS, flags)
 NILFS_SUINFO_UPDATE_FNS(NLIVE_BLKS, nlive_blks)
+NILFS_SUINFO_UPDATE_FNS(NSNAPSHOT_BLKS, nsnapshot_blks)
 NILFS_SUINFO_UPDATE_FNS(NLIVE_LASTMOD, nlive_lastmod)
 
 enum {
