@@ -636,7 +636,7 @@ struct nilfs_segment_usage {
 	__le32 su_nblocks;
 	__le32 su_flags;
 	__le32 su_nlive_blks;
-	__le32 su_pad;
+	__le32 su_nsnapshot_blks;
 	__le64 su_nlive_lastmod;
 };
 
@@ -688,7 +688,7 @@ nilfs_segment_usage_set_clean(struct nilfs_segment_usage *su, size_t susz)
 	su->su_flags = cpu_to_le32(0);
 	if (susz >= NILFS_EXT_SEGMENT_USAGE_SIZE) {
 		su->su_nlive_blks = cpu_to_le32(0);
-		su->su_pad = cpu_to_le32(0);
+		su->su_nsnapshot_blks = cpu_to_le32(0);
 		su->su_nlive_lastmod = cpu_to_le64(0);
 	}
 }
@@ -729,7 +729,7 @@ struct nilfs_suinfo {
 	__u32 sui_nblocks;
 	__u32 sui_flags;
 	__u32 sui_nlive_blks;
-	__u32 sui_pad;
+	__u32 sui_nsnapshot_blks;
 	__u64 sui_nlive_lastmod;
 };
 
@@ -770,6 +770,7 @@ enum {
 	NILFS_SUINFO_UPDATE_FLAGS,
 	NILFS_SUINFO_UPDATE_NLIVE_BLKS,
 	NILFS_SUINFO_UPDATE_NLIVE_LASTMOD,
+	NILFS_SUINFO_UPDATE_NSNAPSHOT_BLKS,
 	__NR_NILFS_SUINFO_UPDATE_FIELDS,
 };
 
@@ -794,6 +795,7 @@ NILFS_SUINFO_UPDATE_FNS(LASTMOD, lastmod)
 NILFS_SUINFO_UPDATE_FNS(NBLOCKS, nblocks)
 NILFS_SUINFO_UPDATE_FNS(FLAGS, flags)
 NILFS_SUINFO_UPDATE_FNS(NLIVE_BLKS, nlive_blks)
+NILFS_SUINFO_UPDATE_FNS(NSNAPSHOT_BLKS, nsnapshot_blks)
 NILFS_SUINFO_UPDATE_FNS(NLIVE_LASTMOD, nlive_lastmod)
 
 enum {
