@@ -70,6 +70,7 @@ struct nilfs_tune_options {
 	int force;
 	__u32 c_interval;
 	__u32 c_block_max;
+	__u64 c_update_win;
 	char label[80];
 	__u8 uuid[16];
 	char *fs_features;
@@ -79,7 +80,7 @@ static void nilfs_tune_usage(void)
 {
 	printf("Usage: nilfs-tune [-h] [-l] [-i interval] [-L volume_name]\n" \
 	       "                  [-m block_max] [-O [^]feature[,...]]\n" \
-	       "                  [-U UUID] device\n");
+	       "                  [-u sb_update_win] [-U UUID] device\n");
 }
 
 static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
@@ -88,7 +89,7 @@ static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
-	0
+	NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN
 };
 
 static const __u64 clear_ok_features[NILFS_MAX_FEATURE_TYPES] = {
@@ -97,7 +98,7 @@ static const __u64 clear_ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
-	0
+	NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN
 };
 
 static int parse_uuid(const char *uuid_string, __u8 *uuid)
@@ -136,7 +137,7 @@ static void parse_options(int argc, char *argv[],
 	opts->force = 0;
 	opts->fs_features = NULL;
 
-	while ((c = getopt(argc, argv, "flhi:L:m:O:U:")) != EOF) {
+	while ((c = getopt(argc, argv, "flhi:L:m:O:U:u:")) != EOF) {
 		switch (c) {
 		case 'f':
 			opts->force = 1;
@@ -158,6 +159,11 @@ static void parse_options(int argc, char *argv[],
 		case 'm':
 			opts->c_block_max = atol(optarg);
 			opts->mask |= NILFS_SB_BLOCK_MAX;
+			opts->flags = O_RDWR;
+			break;
+		case 'u':
+			opts->c_update_win = atoll(optarg);
+			opts->mask |= NILFS_SB_UPDATE_WIN;
 			opts->flags = O_RDWR;
 			break;
 		case 'l':
@@ -448,6 +454,9 @@ static void show_nilfs_sb(struct nilfs_super_block *sbp)
 	printf("Commit interval:\t  %u\n", le32_to_cpu(sbp->s_c_interval));
 	printf("# of blks to create seg:  %u\n",
 	       le32_to_cpu(sbp->s_c_block_max));
+	if (nilfs_feature_sb_update_win(sbp))
+		printf("# seg for sb update win:  %llu\n",
+		       le64_to_cpu(sbp->s_update_win));
 
 	printf("CRC seed:\t\t  0x%08x\n", le32_to_cpu(sbp->s_crc_seed));
 	printf("CRC check sum:\t\t  0x%08x\n", le32_to_cpu(sbp->s_sum));
@@ -541,12 +550,17 @@ static int modify_nilfs(const char *device, struct nilfs_tune_options *opts)
 		sbp->s_c_interval = cpu_to_le32(opts->c_interval);
 	if (opts->mask & NILFS_SB_BLOCK_MAX)
 		sbp->s_c_block_max = cpu_to_le32(opts->c_block_max);
+
 	if (opts->mask & NILFS_SB_FEATURES) {
 		if (update_feature_set(sbp, opts) < 0) {
 			ret = EXIT_FAILURE;
 			goto free_sb;
 		}
 	}
+
+	if ((opts->mask & NILFS_SB_UPDATE_WIN) &&
+	    nilfs_feature_sb_update_win(sbp))
+		sbp->s_update_win = cpu_to_le64(opts->c_update_win);
 
 	if (opts->mask) {
 		if (nilfs_sb_write(devfd, sbp, opts->mask) < 0) {

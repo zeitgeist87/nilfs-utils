@@ -1060,7 +1060,7 @@ static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
-	0
+	NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN
 };
 
 static void nilfs_mkfs_edit_feature(const char *str)
@@ -1764,6 +1764,9 @@ static void prepare_super_block(struct nilfs_disk_info *di)
 		cpu_to_le64(compat_array[NILFS_FEATURE_TYPE_COMPAT_RO]);
 	raw_sb->s_feature_incompat =
 		cpu_to_le64(compat_array[NILFS_FEATURE_TYPE_INCOMPAT]);
+
+	if (nilfs_feature_sb_update_win(raw_sb))
+		raw_sb->s_update_win = 400;
 
 	uuid_generate(raw_sb->s_uuid);	/* set uuid using libuuid */
 	memcpy(raw_sb->s_volume_name, volume_label, sizeof(volume_label));

@@ -59,6 +59,8 @@ static const struct nilfs_feature features[] = {
 	{ NILFS_FEATURE_TYPE_COMPAT_RO,
 	  NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT, "block_count" },
 	/* Incompat features */
+	{ NILFS_FEATURE_TYPE_INCOMPAT,
+	  NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN, "sb_update_win" },
 	/* End */
 	{ 0, 0, NULL }
 };

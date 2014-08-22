@@ -97,6 +97,7 @@ typedef __u64 nilfs_cno_t;
 #define NILFS_SB_FEATURES		0x0004
 #define NILFS_SB_COMMIT_INTERVAL	0x4000
 #define NILFS_SB_BLOCK_MAX		0x8000
+#define NILFS_SB_UPDATE_WIN		0x10000
 
 /**
  * struct nilfs - nilfs object
@@ -324,6 +325,13 @@ static inline __u64 nilfs_get_nsegments(const struct nilfs *nilfs)
 static inline __u32 nilfs_get_blocks_per_segment(const struct nilfs *nilfs)
 {
 	return le32_to_cpu(nilfs->n_sb->s_blocks_per_segment);
+}
+
+static inline int
+nilfs_feature_sb_update_win(const struct nilfs_super_block *sbp)
+{
+	return le64_to_cpu(sbp->s_feature_incompat) &
+			NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN;
 }
 
 #endif	/* NILFS_H */

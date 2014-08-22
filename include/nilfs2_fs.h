@@ -197,7 +197,11 @@ struct nilfs_super_block {
 /*100*/	__le64  s_feature_compat;	/* Compatible feature set */
 	__le64  s_feature_compat_ro;	/* Read-only compatible feature set */
 	__le64  s_feature_incompat;	/* Incompatible feature set */
-	__u32	s_reserved[186];	/* padding to the end of the block */
+	/* only usable if NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN is set */
+	__le64  s_update_win;		/* Window starting from s_last_pseg
+					   where recovery must look for
+					   super root (in segments) */
+	__u32	s_reserved[184];	/* padding to the end of the block */
 };
 
 /*
@@ -221,9 +225,11 @@ struct nilfs_super_block {
  */
 #define NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT	0x00000001ULL
 
+#define NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN	(1ULL << 0)
+
 #define NILFS_FEATURE_COMPAT_SUPP	0ULL
 #define NILFS_FEATURE_COMPAT_RO_SUPP	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT
-#define NILFS_FEATURE_INCOMPAT_SUPP	0ULL
+#define NILFS_FEATURE_INCOMPAT_SUPP	NILFS_FEATURE_INCOMPAT_SB_UPDATE_WIN
 
 /*
  * Bytes count of super_block for CRC-calculation
