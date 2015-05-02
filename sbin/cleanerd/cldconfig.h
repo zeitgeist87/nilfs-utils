@@ -30,16 +30,22 @@
 #include <sys/time.h>
 #include <syslog.h>
 
+struct nilfs;
+struct nilfs_sustat;
 struct nilfs_suinfo;
 
 /**
  * struct nilfs_selection_policy -
- * @p_importance:
- * @p_threshold:
+ * @p_importance: function to calculate the importance for the policy
+ * @p_threshold: segments with lower/higher importance are ignored
+ * @p_comparison: flag that indicates how to sort the importance
  */
 struct nilfs_selection_policy {
-	unsigned long long (*p_importance)(const struct nilfs_suinfo *);
+	unsigned long long (*p_importance)(const struct nilfs_suinfo *,
+					   const struct nilfs_sustat *,
+					   __u64);
 	unsigned long long p_threshold;
+	int p_comparison;
 };
 
 /**
@@ -111,9 +117,15 @@ struct nilfs_cldconfig {
 	unsigned long cf_mc_min_reclaimable_blocks;
 };
 
+#define NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER	0
+#define NILFS_CLDCONFIG_SELECTION_POLICY_BIGGER_IS_BETTER	1
+#define NILFS_CLDCONFIG_SELECTION_POLICY_NO_THRESHOLD	0
 #define NILFS_CLDCONFIG_SELECTION_POLICY_IMPORTANCE	\
 			nilfs_cldconfig_selection_policy_timestamp
-#define NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD	0
+#define NILFS_CLDCONFIG_SELECTION_POLICY_THRESHOLD	\
+			NILFS_CLDCONFIG_SELECTION_POLICY_NO_THRESHOLD
+#define NILFS_CLDCONFIG_SELECTION_POLICY_COMPARISON	\
+			NILFS_CLDCONFIG_SELECTION_POLICY_SMALLER_IS_BETTER
 #define NILFS_CLDCONFIG_PROTECTION_PERIOD		3600
 #define NILFS_CLDCONFIG_MIN_CLEAN_SEGMENTS		10
 #define NILFS_CLDCONFIG_MIN_CLEAN_SEGMENTS_UNIT		NILFS_SIZE_UNIT_PERCENT
@@ -134,8 +146,6 @@ struct nilfs_cldconfig {
 #define NILFS_CLDCONFIG_MC_MIN_RECLAIMABLE_BLOCKS_UNIT	NILFS_SIZE_UNIT_PERCENT
 
 #define NILFS_CLDCONFIG_NSEGMENTS_PER_CLEAN_MAX	32
-
-struct nilfs;
 
 int nilfs_cldconfig_read(struct nilfs_cldconfig *config, const char *path,
 			 struct nilfs *nilfs);
