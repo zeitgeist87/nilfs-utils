@@ -168,6 +168,13 @@ pseudo-filesystem feature "none" will clear all filesystem features.
 .TP
 .B block_count
 Enable block count per checkpoint.
+.TP
+.B sufile_live_blks_ext
+Enable SUFILE extension with extra fields. This is necessary for the
+track_live_blks features to work. Once enabled it cannot be disabled, because
+it changes the ondisk format. Nevertheless it is fully compatible with older
+versions of the file system. This feature is on by default, because it is fully
+backwards compatible and can only be set at file system creation time.
 .RE
 .TP
 .B \-q

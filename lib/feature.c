@@ -55,6 +55,8 @@ struct nilfs_feature {
 
 static const struct nilfs_feature features[] = {
 	/* Compat features */
+	{ NILFS_FEATURE_TYPE_COMPAT,
+	  NILFS_FEATURE_COMPAT_SUFILE_LIVE_BLKS_EXT, "sufile_live_blks_ext" },
 	/* Read-only compat features */
 	{ NILFS_FEATURE_TYPE_COMPAT_RO,
 	  NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT, "block_count" },
