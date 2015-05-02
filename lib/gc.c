@@ -619,6 +619,130 @@ static int nilfs_toss_bdescs(struct nilfs_vector *bdescv)
 }
 
 /**
+ * nilfs_count_nlive_blks - returns the number of live blocks in segnum
+ * @nilfs: nilfs object
+ * @segnum: segment number
+ * @bdescv: vector object storing (descriptors of) disk block numbers
+ * @vdescv: vector object storing (descriptors of) virtual block numbers
+ */
+static size_t nilfs_count_nlive_blks(const struct nilfs *nilfs,
+				     __u64 segnum,
+				     struct nilfs_vector *vdescv,
+				     struct nilfs_vector *bdescv,
+				     size_t *pnss)
+{
+	struct nilfs_vdesc *vdesc;
+	struct nilfs_bdesc *bdesc;
+	int i;
+	size_t res = 0, nss = 0;
+
+	for (i = 0; i < nilfs_vector_get_size(bdescv); i++) {
+		bdesc = nilfs_vector_get_element(bdescv, i);
+		assert(bdesc != NULL);
+
+		if (nilfs_get_segnum_of_block(nilfs, bdesc->bd_blocknr) ==
+		    segnum && nilfs_bdesc_is_live(bdesc))
+			++res;
+	}
+
+	for (i = 0; i < nilfs_vector_get_size(vdescv); i++) {
+		vdesc = nilfs_vector_get_element(vdescv, i);
+		assert(vdesc != NULL);
+
+		if (nilfs_get_segnum_of_block(nilfs, vdesc->vd_blocknr) ==
+		    segnum && (nilfs_vdesc_snapshot_protected(vdesc) ||
+		    !nilfs_vdesc_period_protected(vdesc))) {
+			++res;
+			if (nilfs_vdesc_snapshot_protected(vdesc))
+				++nss;
+		}
+	}
+
+	if (pnss)
+		*pnss = nss;
+
+	return res;
+}
+
+/**
+ * nilfs_try_set_suinfo - wrapper for nilfs_set_suinfo
+ * @nilfs: nilfs object
+ * @segnums: array of segment numbers storing selected segments
+ * @nsegs: size of the @segnums array
+ * @vdescv: vector object storing (descriptors of) virtual block numbers
+ * @bdescv: vector object storing (descriptors of) disk block numbers
+ *
+ * Description: nilfs_try_set_suinfo() prepares the input data structure
+ * for nilfs_set_suinfo(). If the kernel doesn't support the
+ * NILFS_IOCTL_SET_SUINFO ioctl, errno is set to ENOTTY and the set_suinfo
+ * option is cleared to prevent future calls to nilfs_try_set_suinfo().
+ * Similarly if the SUFILE extension is not supported by the kernel,
+ * errno is set to EINVAL and the track_live_blks option is disabled.
+ *
+ * Return Value: On success, zero is returned.  On error, a negative value
+ * is returned. If errno is set to ENOTTY or EINVAL, the kernel doesn't support
+ * the current configuration for nilfs_set_suinfo().
+ */
+static int nilfs_try_set_suinfo(struct nilfs *nilfs, __u64 *segnums,
+		size_t nsegs, struct nilfs_vector *vdescv,
+		struct nilfs_vector *bdescv)
+{
+	struct nilfs_vector *supv;
+	struct nilfs_suinfo_update *sup;
+	struct timeval tv;
+	int ret = -1;
+	size_t i, nblocks, nss;
+
+	supv = nilfs_vector_create(sizeof(struct nilfs_suinfo_update));
+	if (!supv)
+		goto out;
+
+	ret = gettimeofday(&tv, NULL);
+	if (ret < 0)
+		goto out;
+
+	for (i = 0; i < nsegs; ++i) {
+		sup = nilfs_vector_get_new_element(supv);
+		if (!sup) {
+			ret = -1;
+			goto out;
+		}
+
+		sup->sup_segnum = segnums[i];
+		sup->sup_flags = 0;
+		nilfs_suinfo_update_set_lastmod(sup);
+		sup->sup_sui.sui_lastmod = tv.tv_sec;
+
+		if (nilfs_opt_test_track_live_blks(nilfs)) {
+			nilfs_suinfo_update_set_nlive_blks(sup);
+			nilfs_suinfo_update_set_nsnapshot_blks(sup);
+
+			nblocks = nilfs_count_nlive_blks(nilfs,
+					segnums[i], vdescv, bdescv, &nss);
+			sup->sup_sui.sui_nlive_blks = nblocks;
+			sup->sup_sui.sui_nsnapshot_blks = nss;
+		}
+	}
+
+	ret = nilfs_set_suinfo(nilfs, nilfs_vector_get_data(supv), nsegs);
+	if (ret < 0) {
+		if (errno == ENOTTY) {
+			nilfs_gc_logger(LOG_WARNING,
+					"set_suinfo ioctl is not supported");
+			nilfs_opt_clear_set_suinfo(nilfs);
+		} else if (errno == EINVAL) {
+			nilfs_gc_logger(LOG_WARNING,
+					"sufile extension is not supported");
+			nilfs_opt_clear_track_live_blks(nilfs);
+		}
+	}
+
+out:
+	nilfs_vector_destroy(supv);
+	return ret;
+}
+
+/**
  * nilfs_xreclaim_segment - reclaim segments (enhanced API)
  * @nilfs: nilfs object
  * @segnums: array of segment numbers storing selected segments
@@ -632,14 +756,12 @@ int nilfs_xreclaim_segment(struct nilfs *nilfs,
 			   const struct nilfs_reclaim_params *params,
 			   struct nilfs_reclaim_stat *stat)
 {
-	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv, *supv;
+	struct nilfs_vector *vdescv, *bdescv, *periodv, *vblocknrv;
 	sigset_t sigset, oldset, waitset;
 	nilfs_cno_t protcno;
-	ssize_t n, i, ret = -1;
+	ssize_t n, ret = -1;
 	size_t nblocks;
 	__u32 reclaimable_blocks;
-	struct nilfs_suinfo_update *sup;
-	struct timeval tv;
 
 	if (!(params->flags & NILFS_RECLAIM_PARAM_PROTSEQ) ||
 	    (params->flags & (~0UL << __NR_NILFS_RECLAIM_PARAMS))) {
@@ -658,8 +780,7 @@ int nilfs_xreclaim_segment(struct nilfs *nilfs,
 	bdescv = nilfs_vector_create(sizeof(struct nilfs_bdesc));
 	periodv = nilfs_vector_create(sizeof(struct nilfs_period));
 	vblocknrv = nilfs_vector_create(sizeof(__u64));
-	supv = nilfs_vector_create(sizeof(struct nilfs_suinfo_update));
-	if (!vdescv || !bdescv || !periodv || !vblocknrv || !supv)
+	if (!vdescv || !bdescv || !periodv || !vblocknrv)
 		goto out_vec;
 
 	sigemptyset(&sigset);
@@ -757,46 +878,27 @@ int nilfs_xreclaim_segment(struct nilfs *nilfs,
 	if ((params->flags & NILFS_RECLAIM_PARAM_MIN_RECLAIMABLE_BLKS) &&
 			nilfs_opt_test_set_suinfo(nilfs) &&
 			reclaimable_blocks < params->min_reclaimable_blks * n) {
-		if (stat) {
-			stat->deferred_segs = n;
-			stat->cleaned_segs = 0;
+
+		ret = nilfs_try_set_suinfo(nilfs, segnums, n, vdescv, bdescv);
+		if (ret == 0) {
+			if (stat) {
+				stat->deferred_segs = n;
+				stat->cleaned_segs = 0;
+			}
+			goto out_lock;
 		}
 
-		ret = gettimeofday(&tv, NULL);
-		if (ret < 0)
-			goto out_lock;
-
-		for (i = 0; i < n; ++i) {
-			sup = nilfs_vector_get_new_element(supv);
-			if (!sup)
-				goto out_lock;
-
-			sup->sup_segnum = segnums[i];
-			sup->sup_flags = 0;
-			nilfs_suinfo_update_set_lastmod(sup);
-			sup->sup_sui.sui_lastmod = tv.tv_sec;
-		}
-
-		ret = nilfs_set_suinfo(nilfs, nilfs_vector_get_data(supv), n);
-
-		if (ret == 0)
-			goto out_lock;
-
-		if (ret < 0 && errno != ENOTTY) {
+		if (ret < 0 && errno != ENOTTY && errno != EINVAL) {
 			nilfs_gc_logger(LOG_ERR, "cannot set suinfo: %s",
 					strerror(errno));
 			goto out_lock;
 		}
 
-		/* errno == ENOTTY */
-		nilfs_gc_logger(LOG_WARNING,
-				"set_suinfo ioctl is not supported");
-		nilfs_opt_clear_set_suinfo(nilfs);
-		if (stat) {
-			stat->deferred_segs = 0;
-			stat->cleaned_segs = n;
-		}
-		/* Try nilfs_clean_segments */
+		/*
+		 * errno == ENOTTY || errno == EINVAL
+		 * nilfs_try_set_suinfo() failed because it is not supported
+		 * so try nilfs_clean_segments() instead
+		 */
 	}
 
 	ret = nilfs_clean_segments(nilfs,
@@ -829,7 +931,6 @@ out_vec:
 	nilfs_vector_destroy(bdescv);
 	nilfs_vector_destroy(periodv);
 	nilfs_vector_destroy(vblocknrv);
-	nilfs_vector_destroy(supv);
 	/*
 	 * Flags of valid fields in stat->exflags must be unset.
 	 */

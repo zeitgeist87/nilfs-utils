@@ -328,6 +328,12 @@ static inline __u32 nilfs_get_blocks_per_segment(const struct nilfs *nilfs)
 	return le32_to_cpu(nilfs->n_sb->s_blocks_per_segment);
 }
 
+static inline __u64
+nilfs_get_segnum_of_block(const struct nilfs *nilfs, sector_t blocknr)
+{
+	return blocknr / nilfs_get_blocks_per_segment(nilfs);
+}
+
 static inline int nilfs_feature_track_live_blks(const struct nilfs *nilfs)
 {
 	const __u64 required_bits = NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS |
