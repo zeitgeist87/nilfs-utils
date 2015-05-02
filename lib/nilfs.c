@@ -285,38 +285,28 @@ void nilfs_opt_clear_mmap(struct nilfs *nilfs)
  * nilfs_opt_test_mmap - test whether mmap option is set or not
  * @nilfs: nilfs object
  */
-int nilfs_opt_test_mmap(struct nilfs *nilfs)
+int nilfs_opt_test_mmap(const struct nilfs *nilfs)
 {
 	return !!(nilfs->n_opts & NILFS_OPT_MMAP);
 }
 
-/**
- * nilfs_opt_set_set_suinfo - set set_suinfo option
- * @nilfs: nilfs object
- */
-int nilfs_opt_set_set_suinfo(struct nilfs *nilfs)
-{
-	nilfs->n_opts |= NILFS_OPT_SET_SUINFO;
-	return 0;
+#define NILFS_OPT_FLAG(flag, name)					\
+int nilfs_opt_set_##name(struct nilfs *nilfs)				\
+{									\
+	nilfs->n_opts |= NILFS_OPT_##flag;				\
+	return 0;							\
+}									\
+void nilfs_opt_clear_##name(struct nilfs *nilfs)			\
+{									\
+	nilfs->n_opts &= ~NILFS_OPT_##flag;				\
+}									\
+int nilfs_opt_test_##name(const struct nilfs *nilfs)			\
+{									\
+	return !!(nilfs->n_opts & NILFS_OPT_##flag);			\
 }
 
-/**
- * nilfs_opt_clear_set_suinfo - clear set_suinfo option
- * @nilfs: nilfs object
- */
-void nilfs_opt_clear_set_suinfo(struct nilfs *nilfs)
-{
-	nilfs->n_opts &= ~NILFS_OPT_SET_SUINFO;
-}
-
-/**
- * nilfs_opt_test_set_suinfo - test whether set_suinfo option is set or not
- * @nilfs: nilfs object
- */
-int nilfs_opt_test_set_suinfo(struct nilfs *nilfs)
-{
-	return !!(nilfs->n_opts & NILFS_OPT_SET_SUINFO);
-}
+NILFS_OPT_FLAG(SET_SUINFO, set_suinfo);
+NILFS_OPT_FLAG(TRACK_LIVE_BLKS, track_live_blks);
 
 static int nilfs_open_sem(struct nilfs *nilfs)
 {
@@ -406,6 +396,9 @@ struct nilfs *nilfs_open(const char *dev, const char *dir, int flags)
 			errno = ENOTSUP;
 			goto out_fd;
 		}
+
+		if (nilfs_feature_track_live_blks(nilfs))
+			nilfs_opt_set_track_live_blks(nilfs);
 	}
 
 	if (flags &

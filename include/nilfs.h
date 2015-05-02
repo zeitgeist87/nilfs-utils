@@ -130,6 +130,7 @@ struct nilfs {
 
 #define NILFS_OPT_MMAP		0x01
 #define NILFS_OPT_SET_SUINFO	0x02
+#define NILFS_OPT_TRACK_LIVE_BLKS	0x04
 
 
 struct nilfs *nilfs_open(const char *, const char *, int);
@@ -137,13 +138,14 @@ void nilfs_close(struct nilfs *);
 
 const char *nilfs_get_dev(const struct nilfs *);
 
-void nilfs_opt_clear_mmap(struct nilfs *);
-int nilfs_opt_set_mmap(struct nilfs *);
-int nilfs_opt_test_mmap(struct nilfs *);
+#define NILFS_DEF_OPT_FLAG(name)					\
+int nilfs_opt_set_##name(struct nilfs *nilfs);				\
+void nilfs_opt_clear_##name(struct nilfs *nilfs);			\
+int nilfs_opt_test_##name(const struct nilfs *nilfs);
 
-void nilfs_opt_clear_set_suinfo(struct nilfs *);
-int nilfs_opt_set_set_suinfo(struct nilfs *);
-int nilfs_opt_test_set_suinfo(struct nilfs *);
+NILFS_DEF_OPT_FLAG(mmap);
+NILFS_DEF_OPT_FLAG(set_suinfo);
+NILFS_DEF_OPT_FLAG(track_live_blks);
 
 nilfs_cno_t nilfs_get_oldest_cno(struct nilfs *);
 
@@ -324,6 +326,15 @@ static inline __u64 nilfs_get_nsegments(const struct nilfs *nilfs)
 static inline __u32 nilfs_get_blocks_per_segment(const struct nilfs *nilfs)
 {
 	return le32_to_cpu(nilfs->n_sb->s_blocks_per_segment);
+}
+
+static inline int nilfs_feature_track_live_blks(const struct nilfs *nilfs)
+{
+	const __u64 required_bits = NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS |
+				    NILFS_FEATURE_COMPAT_SUFILE_LIVE_BLKS_EXT;
+	__u64 fc = le64_to_cpu(nilfs->n_sb->s_feature_compat);
+
+	return ((fc & required_bits) == required_bits);
 }
 
 #endif	/* NILFS_H */

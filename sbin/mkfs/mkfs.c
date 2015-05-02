@@ -1082,7 +1082,8 @@ static inline void check_ctime(time_t ctime)
 
 static const __u64 ok_features[NILFS_MAX_FEATURE_TYPES] = {
 	/* Compat */
-	NILFS_FEATURE_COMPAT_SUFILE_LIVE_BLKS_EXT,
+	NILFS_FEATURE_COMPAT_SUFILE_LIVE_BLKS_EXT |
+	NILFS_FEATURE_COMPAT_TRACK_LIVE_BLKS,
 	/* Read-only compat */
 	NILFS_FEATURE_COMPAT_RO_BLOCK_COUNT,
 	/* Incompat */
